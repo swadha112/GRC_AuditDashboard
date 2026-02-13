@@ -23,6 +23,7 @@
     "@emotion/styled": "^11.10.5",
     "@tanstack/react-table": "^8.7.9",
     "apexcharts": "3.35.5",
+    "axios": "^1.13.5",
     "react": "19.0.0",
     "react-apexcharts": "1.4.0",
     "react-calendar": "^5.0.0",

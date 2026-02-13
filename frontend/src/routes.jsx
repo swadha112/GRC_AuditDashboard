@@ -6,6 +6,7 @@ import NFTMarketplace from "views/admin/marketplace";
 import Profile from "views/admin/profile";
 import DataTables from "views/admin/tables";
 import RTLDefault from "views/rtl/default";
+import GapGenerator from "views/admin/GapsGenerator";
 
 // Auth Imports
 import SignIn from "views/auth/SignIn";
@@ -17,6 +18,7 @@ import {
   MdBarChart,
   MdPerson,
   MdLock,
+  MdAutoAwesome,
 } from "react-icons/md";
 
 const routes = [
@@ -63,5 +65,12 @@ const routes = [
     icon: <MdHome className="h-6 w-6" />,
     component: <RTLDefault />,
   },
+  {
+    name: "Gap Generator",
+    layout: "/admin",
+    path: "gap-generator",
+    icon: <MdAutoAwesome className="h-6 w-6" />,
+    component: <GapGenerator />,
+  },  
 ];
 export default routes;
