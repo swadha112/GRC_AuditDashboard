@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Card from "components/card";
 
@@ -141,17 +141,68 @@ export default function GapGenerator() {
   const [rawResult, setRawResult] = useState("");
   const [draftResult, setDraftResult] = useState("");
   const [isEditing, setIsEditing] = useState(false);
-
-  // "Local accept" state (no DB yet)
+  const [draftObj, setDraftObj] = useState(null);
+  const [editMode, setEditMode] = useState("pretty"); 
   const [accepted, setAccepted] = useState(false);
 
   const parsed = useMemo(() => parseMaybeJson(rawResult), [rawResult]);
   const parsedDraft = useMemo(() => parseMaybeJson(draftResult), [draftResult]);
-
+  useEffect(() => {
+    if (!isEditing) return;
+    const p = parseMaybeJson(rawResult);
+    if (p.ok) {
+      setDraftObj(p.data);
+      setDraftResult(JSON.stringify(p.data, null, 2));
+      setEditMode("pretty");
+    } else {
+      setDraftObj(null);
+      setDraftResult(rawResult);
+      setEditMode("json");
+    }
+  }, [isEditing, rawResult]);
   const canGenerate = useMemo(() => {
     return Boolean(standard.trim() && control.trim() && (questions.trim() || businessResponse.trim()));
   }, [standard, control, questions, businessResponse]);
-
+  const updateDraftField = (path, value) => {
+    setDraftObj((prev) => {
+      const next = prev ? JSON.parse(JSON.stringify(prev)) : {};
+      let cur = next;
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+        if (cur[key] === undefined) {
+          cur[key] = typeof path[i + 1] === "number" ? [] : {};
+        }
+        cur = cur[key];
+      }
+      cur[path[path.length - 1]] = value;
+      return next;
+    });
+  };
+  
+  const addGap = () => {
+    setDraftObj((prev) => {
+      const next = prev ? JSON.parse(JSON.stringify(prev)) : {};
+      if (!Array.isArray(next.gaps)) next.gaps = [];
+      next.gaps.push({
+        gap_title: "",
+        gap_description: "",
+        severity: "Medium",
+        recommended_action: "",
+        evidence_needed: [],
+        references: [],
+      });
+      return next;
+    });
+  };
+  
+  const removeGap = (idx) => {
+    setDraftObj((prev) => {
+      const next = prev ? JSON.parse(JSON.stringify(prev)) : {};
+      if (!Array.isArray(next.gaps)) next.gaps = [];
+      next.gaps.splice(idx, 1);
+      return next;
+    });
+  };
   const generate = async () => {
     setLoading(true);
     setAccepted(false);
@@ -195,7 +246,13 @@ export default function GapGenerator() {
 
   const accept = () => {
     if (isEditing) {
-      setRawResult(draftResult);
+      if (editMode === "pretty" && draftObj) {
+        const s = JSON.stringify(draftObj, null, 2);
+        setRawResult(s);
+        setDraftResult(s);
+      } else {
+        setRawResult(draftResult);
+      }
       setIsEditing(false);
     }
     setAccepted(true);
@@ -358,20 +415,201 @@ export default function GapGenerator() {
           ) : (
             <div className="flex flex-col gap-4">
               {isEditing ? (
-                <>
-                  <textarea
-                    value={draftResult}
-                    onChange={(e) => setDraftResult(e.target.value)}
-                    rows={16}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
-                  />
-                  {!outputData.ok && (
-                    <p className="text-xs text-red-600 dark:text-red-300">
-                      Edited output is not valid JSON: {outputData.err}
-                    </p>
-                  )}
-                </>
-              ) : (
+  <>
+    <div className="flex items-center justify-between gap-2">
+      <div className="text-xs text-gray-600 dark:text-gray-300">
+        Edit as:{" "}
+        <span className="font-medium">
+          {editMode === "pretty" ? "Form" : "JSON"}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => setEditMode("pretty")}
+          disabled={!parseMaybeJson(rawResult).ok}
+          className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-navy-700 hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+        >
+          Form
+        </button>
+        <button
+          onClick={() => setEditMode("json")}
+          className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-navy-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+        >
+          JSON
+        </button>
+      </div>
+    </div>
+
+    {editMode === "pretty" && draftObj ? (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-navy-800">
+          <label className="text-sm font-medium text-navy-700 dark:text-white">
+            Control
+          </label>
+          <input
+            value={draftObj.control || ""}
+            onChange={(e) => updateDraftField(["control"], e.target.value)}
+            className="mt-2 h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+          />
+
+          <label className="mt-4 block text-sm font-medium text-navy-700 dark:text-white">
+            Overall summary
+          </label>
+          <textarea
+            value={draftObj.overall_summary || draftObj.summary || ""}
+            onChange={(e) =>
+              updateDraftField(
+                [draftObj.overall_summary !== undefined ? "overall_summary" : "summary"],
+                e.target.value
+              )
+            }
+            rows={4}
+            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold text-navy-700 dark:text-white">
+            Gaps
+          </div>
+          <button
+            onClick={addGap}
+            className="rounded-xl bg-brand-500 px-3 py-2 text-xs font-medium text-white hover:bg-brand-600"
+          >
+            + Add gap
+          </button>
+        </div>
+
+        {(Array.isArray(draftObj.gaps) ? draftObj.gaps : []).map((g, idx) => (
+          <div
+            key={idx}
+            className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-navy-800"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-navy-700 dark:text-white">
+                Gap {idx + 1}
+              </div>
+              <button
+                onClick={() => removeGap(idx)}
+                className="rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+              >
+                Remove
+              </button>
+            </div>
+
+            <label className="mt-3 block text-sm font-medium text-navy-700 dark:text-white">
+              Title
+            </label>
+            <input
+              value={g.gap_title || ""}
+              onChange={(e) =>
+                updateDraftField(["gaps", idx, "gap_title"], e.target.value)
+              }
+              className="mt-2 h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+            />
+
+            <label className="mt-3 block text-sm font-medium text-navy-700 dark:text-white">
+              Description
+            </label>
+            <textarea
+              value={g.gap_description || ""}
+              onChange={(e) =>
+                updateDraftField(["gaps", idx, "gap_description"], e.target.value)
+              }
+              rows={3}
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+            />
+
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-navy-700 dark:text-white">
+                  Severity
+                </label>
+                <select
+                  value={g.severity || "Medium"}
+                  onChange={(e) =>
+                    updateDraftField(["gaps", idx, "severity"], e.target.value)
+                  }
+                  className="mt-2 h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+                >
+                  <option>High</option>
+                  <option>Medium</option>
+                  <option>Low</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy-700 dark:text-white">
+                  Evidence needed (comma-separated)
+                </label>
+                <input
+                  value={
+                    Array.isArray(g.evidence_needed)
+                      ? g.evidence_needed.join(", ")
+                      : g.evidence_needed || ""
+                  }
+                  onChange={(e) => {
+                    const arr = e.target.value
+                      .split(",")
+                      .map((x) => x.trim())
+                      .filter(Boolean);
+                    updateDraftField(["gaps", idx, "evidence_needed"], arr);
+                  }}
+                  className="mt-2 h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+                  placeholder="Signed approval record, Change log"
+                />
+              </div>
+            </div>
+
+            <label className="mt-3 block text-sm font-medium text-navy-700 dark:text-white">
+              Recommended action
+            </label>
+            <textarea
+              value={g.recommended_action || ""}
+              onChange={(e) =>
+                updateDraftField(["gaps", idx, "recommended_action"], e.target.value)
+              }
+              rows={3}
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+            />
+
+            <label className="mt-3 block text-sm font-medium text-navy-700 dark:text-white">
+              References (one per line)
+            </label>
+            <textarea
+              value={Array.isArray(g.references) ? g.references.join("\n") : g.references || ""}
+              onChange={(e) => {
+                const arr = e.target.value
+                  .split("\n")
+                  .map((x) => x.trim())
+                  .filter(Boolean);
+                updateDraftField(["gaps", idx, "references"], arr);
+              }}
+              rows={3}
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+            />
+          </div>
+        ))}
+      </div>
+    ) : (
+      <>
+        <textarea
+          value={draftResult}
+          onChange={(e) => setDraftResult(e.target.value)}
+          rows={16}
+          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+        />
+        {(() => {
+          const p = parseMaybeJson(draftResult);
+          return !p.ok ? (
+            <p className="text-xs text-red-600 dark:text-red-300">
+              Edited output is not valid JSON: {p.err}
+            </p>
+          ) : null;
+        })()}
+      </>
+    )}
+  </>
+) : (
                 <>
                   {outputData.ok ? (
                     <NiceOutputView data={outputData.data} />
