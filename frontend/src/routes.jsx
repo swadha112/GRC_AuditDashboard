@@ -7,7 +7,9 @@ import Profile from "views/admin/profile";
 import DataTables from "views/admin/tables";
 import RTLDefault from "views/rtl/default";
 import GapGenerator from "views/admin/GapsGenerator";
-
+import SoAGenerator from "views/admin/SoAGenerator";
+import Documents from "views/admin/Documents";
+import InternalAuditGapAssessment from "views/admin/InternalAuditGapAssessment";
 // Auth Imports
 import SignIn from "views/auth/SignIn";
 
@@ -19,6 +21,7 @@ import {
   MdPerson,
   MdLock,
   MdAutoAwesome,
+  MdDescription
 } from "react-icons/md";
 
 const routes = [
@@ -59,12 +62,12 @@ const routes = [
     component: <SignIn />,
   },
   {
-    name: "RTL Admin",
-    layout: "/rtl",
-    path: "rtl",
-    icon: <MdHome className="h-6 w-6" />,
-    component: <RTLDefault />,
-  },
+    name: "SoA Generator",
+    layout: "/admin",
+    path: "soa-generator",
+    icon: <MdBarChart className="h-6 w-6" />,
+    component: <SoAGenerator />,
+  },  
   {
     name: "Gap Generator",
     layout: "/admin",
@@ -72,5 +75,19 @@ const routes = [
     icon: <MdAutoAwesome className="h-6 w-6" />,
     component: <GapGenerator />,
   },  
+  {
+    name: "Documents",
+    layout: "/admin",
+    path: "documents",
+    icon: <MdDescription className="h-6 w-6" />,
+    component: <Documents />,
+  },
+  {
+    name: "IA Gap Assessment",
+    layout: "/admin",
+    path: "internal-audit-gaps",
+    icon: <MdBarChart className="h-6 w-6" />,
+    component: <InternalAuditGapAssessment />,
+  },
 ];
 export default routes;
