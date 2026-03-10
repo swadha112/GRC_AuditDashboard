@@ -1,22 +1,99 @@
+version: "3.9"
+
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: grc-postgres
+    environment:
+      POSTGRES_DB: auditDashboard
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432" # VS Code can connect via localhost
+    volumes:
+      - grc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auditDashboard"]
+      interval: 5s
+      timeout: 3s
+      retries: 25
+    restart: unless-stopped
+
+  # ---------- DEV BACKEND (hot reload) ----------
+  backend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./backend/.env
+    environment:
+      FRONTEND_ORIGIN: "http://localhost:5173"
+      PGHOST: "db"
+      PGPORT: "5432"
+      PGDATABASE: "auditDashboard"
+      PGUSER: "postgres"
+      PGPASSWORD: "postgres"
+      NODE_ENV: "development"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- DEV FRONTEND (vite) ----------
+  frontend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: "http://localhost:5001"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend-dev
+    restart: unless-stopped
+
+  # ---------- PROD BACKEND ----------
   backend:
+    profiles: ["prod"]
     build: ./backend
     ports:
       - "5001:5001"
     env_file:
       - ./backend/.env
     environment:
-      # Allow frontend container origin
-      FRONTEND_ORIGIN: "http://localhost:8000"
+      FRONTEND_ORIGIN: "http://localhost:8080"
+      PGHOST: "db"
+      PGPORT: "5432"
+      PGDATABASE: "auditDashboard"
+      PGUSER: "postgres"
+      PGPASSWORD: "postgres"
+      NODE_ENV: "production"
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
+  # ---------- PROD FRONTEND (nginx) ----------
   frontend:
+    profiles: ["prod"]
     build: ./frontend
     ports:
       - "8080:80"
     environment:
-      # Frontend will call backend through host-mapped port
       VITE_API_URL: "http://localhost:5001"
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  grc_pgdata:

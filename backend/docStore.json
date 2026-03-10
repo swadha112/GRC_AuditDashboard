@@ -1,0 +1,469 @@
+{
+  "documents": [
+    {
+      "id": "doc_001",
+      "control": "ISO 27001:2022 Annex A A.5.1",
+      "title": "Information Security Policy",
+      "status": "Implemented",
+      "version": "0.2",
+      "owner": "Compliance Owner",
+      "approver": "CISO",
+      "file": {
+        "originalName": "RetailCo_InfoSecPolicy_GOOD.pdf",
+        "storedName": "1772107415807_66058cfb96397_RetailCo_InfoSecPolicy_GOOD.pdf",
+        "mimeType": "application/pdf",
+        "size": 5402
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-26T12:07:41.995Z",
+        "approvedAt": "2026-02-26T12:04:20.819Z"
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Roles & Responsibilities (A.5.2)",
+          "Access Control & Identity Standard (A.5.15–A.5.18)",
+          "Supplier Security Policy (A.5.23)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "Logging Standard (A.8.15)",
+          "Backup & Restore Procedure (A.8.13)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-26T12:07:41.995Z",
+          "actorRole": "approver",
+          "actorName": "Approver User",
+          "actorId": null,
+          "action": "update_status",
+          "details": "Status -> Implemented | We have implemented this policy in our org"
+        },
+        {
+          "at": "2026-02-26T12:04:20.819Z",
+          "actorRole": "approver",
+          "actorName": "Approver User",
+          "actorId": null,
+          "action": "update_status",
+          "details": "Status -> Approved | Approved"
+        },
+        {
+          "at": "2026-02-26T12:04:07.994Z",
+          "actorRole": "approver",
+          "actorName": "Approver User",
+          "actorId": null,
+          "action": "update_status",
+          "details": "Status -> Reviewed"
+        },
+        {
+          "at": "2026-02-26T12:03:35.812Z",
+          "actorRole": "editor",
+          "actorName": "Editor User",
+          "actorId": null,
+          "action": "upload_file",
+          "details": "Uploaded RetailCo_InfoSecPolicy_GOOD.pdf"
+        },
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_002",
+      "control": "ISO 27001:2022 Annex A A.5.2",
+      "title": "Information Security Roles & Responsibilities (ISMS RACI)",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "Compliance Owner",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Information Security Policy (A.5.1)",
+          "Access Control & Identity Standard (A.5.15–A.5.18)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "Supplier Security Policy (A.5.23)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_003",
+      "control": "ISO 27001:2022 Annex A A.5.15–A.5.18",
+      "title": "Access Control & Identity Management Standard",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "IT Security Lead",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Information Security Policy (A.5.1)",
+          "Information Security Roles & Responsibilities (ISMS RACI) (A.5.2)",
+          "Logging Standard (A.8.15)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "DLP / Removable Media Standard (A.8.12)",
+          "Privacy & Protection of PII Policy (A.5.34)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_004",
+      "control": "ISO 27001:2022 Annex A A.5.23",
+      "title": "Supplier Security Policy",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "Procurement / Vendor Manager",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Information Security Policy (A.5.1)",
+          "Privacy & Protection of PII Policy (A.5.34)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "Logging Standard (A.8.15)",
+          "Access Control & Identity Management Standard (A.5.15–A.5.18)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_005",
+      "control": "ISO 27001:2022 Annex A A.5.34",
+      "title": "Privacy & Protection of PII Policy",
+      "status": "Reviewed",
+      "version": "0.2",
+      "owner": "Compliance Owner",
+      "approver": "CISO",
+      "file": {
+        "originalName": "RetailCo_PrivacyPolicy_GOOD.pdf",
+        "storedName": "1772107510292_84cf17791fee2_RetailCo_PrivacyPolicy_GOOD.pdf",
+        "mimeType": "application/pdf",
+        "size": 5302
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-26T12:05:29.156Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Information Security Policy (A.5.1)",
+          "Access Control & Identity Management Standard (A.5.15–A.5.18)",
+          "Supplier Security Policy (A.5.23)",
+          "Logging Standard (A.8.15)",
+          "DLP / Removable Media Standard (A.8.12)",
+          "Incident Response Plan & Playbook (A.5.26)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-26T12:05:29.156Z",
+          "actorRole": "approver",
+          "actorName": "Approver User",
+          "actorId": null,
+          "action": "update_status",
+          "details": "Status -> Reviewed | minor edits neeeded"
+        },
+        {
+          "at": "2026-02-26T12:05:10.294Z",
+          "actorRole": "editor",
+          "actorName": "Editor User",
+          "actorId": null,
+          "action": "upload_file",
+          "details": "Uploaded RetailCo_PrivacyPolicy_GOOD.pdf"
+        },
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_006",
+      "control": "ISO 27001:2022 Annex A A.8.7",
+      "title": "Malware Protection Standard",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "IT Security Lead",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Logging Standard (A.8.15)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "Backup & Restore Procedure (A.8.13)",
+          "Access Control & Identity Management Standard (A.5.15–A.5.18)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_007",
+      "control": "ISO 27001:2022 Annex A A.8.12",
+      "title": "Data Loss Prevention & Removable Media Standard",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "IT Security Lead",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Access Control & Identity Management Standard (A.5.15–A.5.18)",
+          "Logging Standard (A.8.15)",
+          "Privacy & Protection of PII Policy (A.5.34)",
+          "Incident Response Plan & Playbook (A.5.26)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_008",
+      "control": "ISO 27001:2022 Annex A A.8.15",
+      "title": "Logging Standard",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "IT Security Lead",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Access Control & Identity Management Standard (A.5.15–A.5.18)",
+          "Malware Protection Standard (A.8.7)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "Supplier Security Policy (A.5.23)",
+          "Privacy & Protection of PII Policy (A.5.34)",
+          "Backup & Restore Procedure (A.8.13)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_009",
+      "control": "ISO 27001:2022 Annex A A.8.13",
+      "title": "Backup & Restore Procedure",
+      "status": "Not Started",
+      "version": "0.1",
+      "owner": "IT Operations Lead",
+      "approver": "CISO",
+      "file": {
+        "originalName": "",
+        "storedName": "",
+        "mimeType": "",
+        "size": 0
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-23T00:00:00.000Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Malware Protection Standard (A.8.7)",
+          "Incident Response Plan & Playbook (A.5.26)",
+          "Logging Standard (A.8.15)",
+          "Information Security Policy (A.5.1)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    },
+    {
+      "id": "doc_010",
+      "control": "ISO 27001:2022 Annex A A.5.26",
+      "title": "Incident Response Plan & Playbook",
+      "status": "Reviewed",
+      "version": "0.2",
+      "owner": "IT Security Lead",
+      "approver": "CISO",
+      "file": {
+        "originalName": "RetailCo_IncidentResponse_BAD.pdf",
+        "storedName": "1772107584461_f88a923480f1e_RetailCo_IncidentResponse_BAD.pdf",
+        "mimeType": "application/pdf",
+        "size": 2573
+      },
+      "timestamps": {
+        "createdAt": "2026-02-23T00:00:00.000Z",
+        "updatedAt": "2026-02-26T12:06:44.911Z",
+        "approvedAt": null
+      },
+      "correlations": {
+        "relatedDocs": [
+          "Logging Standard (A.8.15)",
+          "Malware Protection Standard (A.8.7)",
+          "Backup & Restore Procedure (A.8.13)",
+          "Access Control & Identity Management Standard (A.5.15–A.5.18)",
+          "Supplier Security Policy (A.5.23)",
+          "Privacy & Protection of PII Policy (A.5.34)"
+        ],
+        "relatedFindings": [],
+        "mappedControls": []
+      },
+      "auditTrail": [
+        {
+          "at": "2026-02-26T12:06:44.911Z",
+          "actorRole": "approver",
+          "actorName": "Approver User",
+          "actorId": null,
+          "action": "update_status",
+          "details": "Status -> Reviewed | Need lot of changes"
+        },
+        {
+          "at": "2026-02-26T12:06:24.465Z",
+          "actorRole": "approver",
+          "actorName": "Approver User",
+          "actorId": null,
+          "action": "upload_file",
+          "details": "Uploaded RetailCo_IncidentResponse_BAD.pdf"
+        },
+        {
+          "at": "2026-02-23T00:00:00.000Z",
+          "actorRole": "system",
+          "actorName": "System",
+          "action": "seed",
+          "details": "Seed record created"
+        }
+      ]
+    }
+  ]
+}
