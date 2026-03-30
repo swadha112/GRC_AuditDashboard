@@ -20,20 +20,16 @@ function TypeBadge({ value }) {
   );
 }
 
-// ---------- Merge Modal ----------
 function MergeModal({ open, conflicts, onClose, onResolved }) {
   const [decisions, setDecisions] = useState([]);
 
   useEffect(() => {
     if (!open) return;
-    const init = (conflicts || []).map((c, idx) => {
-      const best = c.candidates?.[0]?.existing;
-      return {
-        idx,
-        action: "merge", // default
-        targetId: best?.id || null,
-      };
-    });
+    const init = (conflicts || []).map((c, idx) => ({
+      idx,
+      action: "merge",
+      targetId: c.candidates?.[0]?.existing?.id || null,
+    }));
     setDecisions(init);
   }, [open, conflicts]);
 
@@ -46,11 +42,10 @@ function MergeModal({ open, conflicts, onClose, onResolved }) {
   const submit = async () => {
     const resolutions = (conflicts || []).map((c, idx) => {
       const d = decisions.find((x) => x.idx === idx);
-      const bestId = c.candidates?.[0]?.existing?.id || null;
       return {
         incoming: c.incoming,
         action: d?.action || "merge",
-        targetId: d?.targetId || bestId,
+        targetId: d?.targetId || c.candidates?.[0]?.existing?.id || null,
       };
     });
 
@@ -64,11 +59,9 @@ function MergeModal({ open, conflicts, onClose, onResolved }) {
       <div className="w-full max-w-5xl rounded-2xl bg-white p-5 shadow-xl dark:bg-navy-800">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-bold text-navy-700 dark:text-white">
-              Possible duplicates detected
-            </div>
+            <div className="text-lg font-bold text-navy-700 dark:text-white">Possible duplicates detected</div>
             <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-              Choose what to do for each item (merge / keep both / keep existing / replace).
+              Review similar findings and choose what to do.
             </div>
           </div>
           <button
@@ -80,12 +73,11 @@ function MergeModal({ open, conflicts, onClose, onResolved }) {
           </button>
         </div>
 
-        <div className="mt-4 space-y-4 max-h-[70vh] overflow-auto pr-1">
+        <div className="mt-4 max-h-[70vh] space-y-4 overflow-auto pr-1">
           {(conflicts || []).map((c, idx) => {
             const best = c.candidates?.[0];
             const bestExisting = best?.existing;
-            const sim = best?.similarity ?? 0;
-
+            const sim = Number(best?.similarity ?? 0);
             const decision = decisions.find((x) => x.idx === idx) || {};
             const action = decision.action || "merge";
 
@@ -94,66 +86,88 @@ function MergeModal({ open, conflicts, onClose, onResolved }) {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <div className="text-sm font-bold text-navy-700 dark:text-white">
-                      Conflict #{idx + 1} — similarity {Number(sim).toFixed(2)}
+                      Conflict #{idx + 1} — similarity {sim.toFixed(2)}
                     </div>
                     <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                      Incoming vs existing candidate
+                      {best?.conflict_level === "strong" ? "Strong match" : "Possible match"}
                     </div>
                   </div>
 
-                  <select
-                    value={action}
-                    onChange={(e) => setDecision(idx, { action: e.target.value })}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-900 dark:text-white"
-                  >
-                    <option value="merge">Merge (recommended)</option>
-                    <option value="keep_both">Keep both</option>
-                    <option value="keep_existing">Keep existing (discard incoming)</option>
-                    <option value="replace_existing">Replace existing with incoming</option>
-                  </select>
-                </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={action}
+                      onChange={(e) => setDecision(idx, { action: e.target.value })}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-900 dark:text-white"
+                    >
+                      <option value="merge">Merge</option>
+                      <option value="keep_both">Keep both</option>
+                      <option value="keep_existing">Keep existing</option>
+                      <option value="replace_existing">Replace existing</option>
+                    </select>
 
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm dark:bg-white/5">
-                    <div className="text-xs font-bold uppercase text-gray-600 dark:text-gray-300">
-                      Incoming
-                    </div>
-                    <div className="mt-2 text-navy-700 dark:text-white">
-                      <div className="font-semibold">{c.incoming.control} • {c.incoming.type}</div>
-                      <div className="mt-1 text-gray-700 dark:text-gray-200">{c.incoming.source_observation}</div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl bg-gray-50 p-3 text-sm dark:bg-white/5">
-                    <div className="text-xs font-bold uppercase text-gray-600 dark:text-gray-300">
-                      Existing (top match)
-                    </div>
-                    {bestExisting ? (
-                      <div className="mt-2 text-navy-700 dark:text-white">
-                        <div className="font-semibold">
-                          #{bestExisting.id} • {bestExisting.control} • {bestExisting.type}
-                        </div>
-                        <div className="mt-1 text-gray-700 dark:text-gray-200">
-                          {bestExisting.source_observation}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-2 text-gray-700 dark:text-gray-200">No candidate?</div>
+                    {(action === "merge" || action === "replace_existing") && (
+                      <select
+                        value={decision.targetId || ""}
+                        onChange={(e) => setDecision(idx, { targetId: Number(e.target.value) })}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-900 dark:text-white"
+                      >
+                        {(c.candidates || []).map((cand) => (
+                          <option key={cand.existing.id} value={cand.existing.id}>
+                            #{cand.existing.id} • {cand.existing.control} • {cand.similarity.toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </div>
                 </div>
 
-                {(action === "merge" || action === "replace_existing") && (
-                  <div className="mt-3 text-xs text-gray-600 dark:text-gray-300">
-                    Target: #{bestExisting?.id || "?"}
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm dark:bg-white/5">
+                    <div className="text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Incoming</div>
+                    <div className="mt-2 text-navy-700 dark:text-white">
+                      <div className="font-semibold">
+                        {c.incoming.control} • {c.incoming.type}
+                      </div>
+                      <div className="mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-200">
+                        {c.incoming.source_observation}
+                      </div>
+                      <div className="mt-2 whitespace-pre-wrap text-gray-700 dark:text-gray-200">
+                        <b>Basis:</b> {c.incoming.basis}
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm dark:bg-white/5">
+                    <div className="text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Candidates</div>
+                    <div className="mt-2 space-y-2">
+                      {(c.candidates || []).map((cand) => (
+                        <div
+                          key={cand.existing.id}
+                          className="rounded-lg border border-gray-200 p-2 dark:border-white/10"
+                        >
+                          <div className="font-semibold text-navy-700 dark:text-white">
+                            #{cand.existing.id} • {cand.existing.control} • {cand.existing.type}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            similarity {Number(cand.similarity).toFixed(2)}
+                          </div>
+                          <div className="mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-200">
+                            {cand.existing.source_observation}
+                          </div>
+                          <div className="mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-200">
+                            <b>Basis:</b> {cand.existing.basis}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           })}
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={onClose}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white"
@@ -182,15 +196,12 @@ export default function InternalAuditGapAssessment() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // inline edit state
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
 
-  // merge modal
   const [conflicts, setConflicts] = useState([]);
   const [mergeOpen, setMergeOpen] = useState(false);
 
-  // search
   const [search, setSearch] = useState("");
 
   const filteredRows = useMemo(() => {
@@ -229,7 +240,6 @@ export default function InternalAuditGapAssessment() {
       const conf = Array.isArray(res.data?.conflicts) ? res.data.conflicts : [];
 
       if (created.length) {
-        // refresh from DB so IDs are consistent
         await refresh();
       }
 
@@ -279,15 +289,25 @@ export default function InternalAuditGapAssessment() {
         .filter(Boolean),
     };
 
-    await axios.patch(`${API_BASE}/api/audit/findings/${editingId}`, updated);
-    await refresh();
-    cancelEdit();
+    try {
+      await axios.patch(`${API_BASE}/api/audit/findings/${editingId}`, updated);
+      await refresh();
+      cancelEdit();
+    } catch (e) {
+      console.error(e);
+      setError(e?.response?.data?.error || "Failed to save edit.");
+    }
   };
 
   const removeRow = async (id) => {
-    await axios.delete(`${API_BASE}/api/audit/findings/${id}`);
-    await refresh();
-    if (editingId === id) cancelEdit();
+    try {
+      await axios.delete(`${API_BASE}/api/audit/findings/${id}`);
+      await refresh();
+      if (editingId === id) cancelEdit();
+    } catch (e) {
+      console.error(e);
+      setError(e?.response?.data?.error || "Failed to delete.");
+    }
   };
 
   return (
@@ -299,6 +319,7 @@ export default function InternalAuditGapAssessment() {
         onResolved={async () => {
           await refresh();
           setConflicts([]);
+          setMergeOpen(false);
         }}
       />
 
@@ -309,11 +330,11 @@ export default function InternalAuditGapAssessment() {
               Internal Audit Gap Assessment
             </h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-              Paste observations. AI splits them into rows and classifies them. Stored in DB. Duplicates can be merged.
+              Paste observations. AI splits them into rows and classifies them. Stored in DB. Similar findings come up for merge review.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2">
             <button
               onClick={refresh}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-navy-700 hover:bg-gray-50 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:hover:bg-white/5"
@@ -347,7 +368,12 @@ export default function InternalAuditGapAssessment() {
             <textarea
               className="mt-2 w-full rounded-xl border border-gray-200 bg-white p-3 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
               rows={6}
-              placeholder={`Example:\n- Access reviews are not documented for admin accounts.\n- USB ports are not blocked on store desktops.\n- Incident response contacts are outdated.\n\nOr paste a paragraph; AI will split it.`}
+              placeholder={`Example:
+- Access reviews are not documented for admin accounts.
+- USB ports are not blocked on store desktops.
+- Incident response contacts are outdated.
+
+Or paste a paragraph; AI will split it.`}
               value={observationsText}
               onChange={(e) => setObservationsText(e.target.value)}
             />
@@ -408,7 +434,9 @@ export default function InternalAuditGapAssessment() {
                           value={d.domain}
                           onChange={(e) => setEditDraft((p) => ({ ...p, domain: e.target.value }))}
                         >
-                          {DOMAIN_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
+                          {DOMAIN_OPTIONS.map((x) => (
+                            <option key={x} value={x}>{x}</option>
+                          ))}
                         </select>
                       ) : (
                         r.domain
@@ -446,7 +474,9 @@ export default function InternalAuditGapAssessment() {
                           value={d.type}
                           onChange={(e) => setEditDraft((p) => ({ ...p, type: e.target.value }))}
                         >
-                          {TYPE_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
+                          {TYPE_OPTIONS.map((x) => (
+                            <option key={x} value={x}>{x}</option>
+                          ))}
                         </select>
                       ) : (
                         <TypeBadge value={r.type} />
@@ -473,7 +503,7 @@ export default function InternalAuditGapAssessment() {
                           rows={4}
                           value={d.recommendationText}
                           onChange={(e) => setEditDraft((p) => ({ ...p, recommendationText: e.target.value }))}
-                          placeholder={"One step per line"}
+                          placeholder="One step per line"
                         />
                       ) : (
                         <ul className="list-disc pl-5">

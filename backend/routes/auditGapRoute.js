@@ -1,7 +1,5 @@
-// backend/routes/auditGapRoute.js
 import express from "express";
 import OpenAI from "openai";
-import crypto from "crypto";
 import { q } from "../db.js";
 import { embedText } from "../utils/embeddings.js";
 
@@ -11,13 +9,12 @@ const client = new OpenAI({
   apiKey: process.env.GEMINI_API_KEY,
   baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
 });
+
 const MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 
-// ===== Embeddings =====
-const EMB_MODEL_NAME = "all-MiniLM-L6-v2"; // 384 dims
-const SIM_THRESHOLD = Number(process.env.DEDUPE_SIM_THRESHOLD || 0.88);
-const TOP_K = Number(process.env.DEDUPE_TOPK || 3);
-
+const STRONG_DUP_THRESHOLD = Number(process.env.IA_DUP_THRESHOLD_STRONG || 0.88);
+const POSSIBLE_DUP_THRESHOLD = Number(process.env.IA_DUP_THRESHOLD_POSSIBLE || 0.82);
+const TOP_K = Number(process.env.IA_DUP_TOPK || 5);
 
 function normalizeText(s) {
   return String(s || "")
@@ -26,275 +23,350 @@ function normalizeText(s) {
     .trim();
 }
 
-function sha256(s) {
-  return crypto.createHash("sha256").update(s).digest("hex");
-}
-
-function makeFingerprint({ standard, control, source_observation }) {
-  const std = String(standard || "ISO27001:2022").trim();
-  const ctrl = String(control || "Unknown").trim() || "Unknown";
-  const body = normalizeText(source_observation);
-  return `${std}|${ctrl}|${sha256(body)}`;
-}
-
 function toPgVector(arr) {
-  // pgvector accepts '[1,2,3]'
   return `[${arr.join(",")}]`;
 }
 
-/* async function embedText(text) {
-  const emb = await getEmbedder();
-  const input = normalizeText(text);
-  const out = await emb.embed([input]);
-  return out[0]; // number[]
-} */
-
-async function findExactByFingerprint(fingerprint) {
-  const r = await q(
-    `SELECT * FROM ia_findings WHERE fingerprint = $1 LIMIT 1`,
-    [fingerprint]
-  );
-  return r.rows[0] || null;
+function rowFromDb(r) {
+  return {
+    id: String(r.id),
+    standard: r.standard,
+    domain: r.domain,
+    control: r.control,
+    clause: r.clause,
+    type: r.type,
+    basis: r.basis,
+    source_observation: r.source_observation,
+    recommendation: Array.isArray(r.recommendation) ? r.recommendation : [],
+    confidence: Number(r.confidence ?? 0.5),
+    embedding_model: r.embedding_model,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
 }
 
-async function findSimilarByEmbedding(embeddingVec, standard) {
-  // cosine distance operator in pgvector: <=> (smaller is closer)
-  // similarity ≈ 1 - distance
-  const vec = toPgVector(embeddingVec);
-  const r = await q(
-    `
-    SELECT
-      *,
-      (1 - (embedding <=> $1::vector)) AS similarity
-    FROM ia_findings
-    WHERE standard = $2 AND embedding IS NOT NULL
-    ORDER BY embedding <=> $1::vector
-    LIMIT $3
-    `,
-    [vec, standard, TOP_K]
+async function getAllFindings() {
+  const res = await q(
+    `SELECT * FROM ia_findings ORDER BY created_at DESC LIMIT 500`,
+    []
   );
-  return r.rows || [];
+  return res.rows.map(rowFromDb);
+}
+
+async function getFindingById(id) {
+  const res = await q(`SELECT * FROM ia_findings WHERE id = $1 LIMIT 1`, [id]);
+  return res.rows[0] ? rowFromDb(res.rows[0]) : null;
 }
 
 async function insertFinding(row) {
-  const r = await q(
+  const res = await q(
     `
     INSERT INTO ia_findings
-      (standard, domain, control, clause, type, basis, source_observation, recommendation, confidence,
-       fingerprint, embedding, embedding_model)
+      (standard, domain, control, clause, type, basis, source_observation, recommendation, confidence, embedding, embedding_model)
     VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11::vector,$12)
+      ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::vector,$11)
     RETURNING *
     `,
     [
       row.standard,
       row.domain,
       row.control,
-      row.clause,
+      row.clause || "",
       row.type,
-      row.basis,
-      row.source_observation,
+      row.basis || "",
+      row.source_observation || "",
       JSON.stringify(row.recommendation || []),
       row.confidence ?? 0.5,
-      row.fingerprint,
       toPgVector(row.embedding),
       row.embedding_model,
     ]
   );
-  return r.rows[0];
+  return rowFromDb(res.rows[0]);
 }
 
-async function updateFinding(id, patch) {
-  const fields = [];
-  const vals = [];
-  let i = 1;
+async function updateFindingById(id, patch) {
+  const current = await getFindingById(id);
+  if (!current) return null;
 
-  const allowed = [
-    "domain",
-    "control",
-    "clause",
-    "type",
-    "basis",
-    "source_observation",
-    "recommendation",
-    "confidence",
-    "embedding",
-  ];
+  const merged = {
+    ...current,
+    ...patch,
+  };
 
-  for (const k of allowed) {
-    if (patch[k] !== undefined) {
-      if (k === "recommendation") {
-        fields.push(`${k} = $${i}::jsonb`);
-        vals.push(JSON.stringify(patch[k] || []));
-      } else if (k === "embedding") {
-        fields.push(`${k} = $${i}::vector`);
-        vals.push(toPgVector(patch[k]));
-      } else {
-        fields.push(`${k} = $${i}`);
-        vals.push(patch[k]);
-      }
-      i++;
+  // Re-embed if key semantic fields change
+  if (
+    patch.source_observation !== undefined ||
+    patch.basis !== undefined ||
+    patch.control !== undefined ||
+    patch.clause !== undefined
+  ) {
+    const semanticText = buildSemanticText(merged);
+    merged.embedding = await embedText(semanticText);
+  } else {
+    const raw = await q(`SELECT embedding FROM ia_findings WHERE id = $1`, [id]);
+    merged.embedding = raw.rows[0]?.embedding || null;
+  }
+
+  const res = await q(
+    `
+    UPDATE ia_findings
+    SET
+      standard = $1,
+      domain = $2,
+      control = $3,
+      clause = $4,
+      type = $5,
+      basis = $6,
+      source_observation = $7,
+      recommendation = $8::jsonb,
+      confidence = $9,
+      embedding = $10::vector,
+      updated_at = NOW()
+    WHERE id = $11
+    RETURNING *
+    `,
+    [
+      merged.standard,
+      merged.domain,
+      merged.control,
+      merged.clause || "",
+      merged.type,
+      merged.basis || "",
+      merged.source_observation || "",
+      JSON.stringify(merged.recommendation || []),
+      merged.confidence ?? 0.5,
+      merged.embedding ? toPgVector(merged.embedding) : null,
+      id,
+    ]
+  );
+
+  return res.rows[0] ? rowFromDb(res.rows[0]) : null;
+}
+
+async function deleteFindingById(id) {
+  await q(`DELETE FROM ia_findings WHERE id = $1`, [id]);
+}
+
+function buildSemanticText(row) {
+  return [
+    normalizeText(row.control),
+    normalizeText(row.clause),
+    normalizeText(row.source_observation),
+    normalizeText(row.basis),
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+async function findSimilarCandidates({ standard, control, embedding }) {
+  const vec = toPgVector(embedding);
+
+  // first try same standard + same control
+  const sameControl = await q(
+    `
+    SELECT *,
+           (1 - (embedding <=> $1::vector)) AS similarity
+    FROM ia_findings
+    WHERE standard = $2
+      AND control = $3
+      AND embedding IS NOT NULL
+    ORDER BY embedding <=> $1::vector
+    LIMIT $4
+    `,
+    [vec, standard, control, TOP_K]
+  );
+
+  let rows = sameControl.rows || [];
+
+  // fallback to same standard if not enough candidates
+  if (rows.length < TOP_K) {
+    const broader = await q(
+      `
+      SELECT *,
+             (1 - (embedding <=> $1::vector)) AS similarity
+      FROM ia_findings
+      WHERE standard = $2
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> $1::vector
+      LIMIT $3
+      `,
+      [vec, standard, TOP_K]
+    );
+
+    const seen = new Set(rows.map((r) => r.id));
+    for (const r of broader.rows || []) {
+      if (!seen.has(r.id)) rows.push(r);
     }
   }
 
-  fields.push(`updated_at = NOW()`);
-
-  const sql = `
-    UPDATE ia_findings
-    SET ${fields.join(", ")}
-    WHERE id = $${i}
-    RETURNING *
-  `;
-  vals.push(id);
-
-  const r = await q(sql, vals);
-  return r.rows[0] || null;
+  return rows
+    .map((r) => ({
+      existing: rowFromDb(r),
+      similarity: Number(r.similarity ?? 0),
+      conflict_level:
+        Number(r.similarity ?? 0) >= STRONG_DUP_THRESHOLD ? "strong" : "possible",
+    }))
+    .filter((x) => x.similarity >= POSSIBLE_DUP_THRESHOLD)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, TOP_K);
 }
 
-// ====== LIST / CRUD endpoints ======
+function mergeRows(existing, incoming) {
+  const recs = [
+    ...(existing.recommendation || []),
+    ...(incoming.recommendation || []),
+  ];
+
+  const uniqRecs = [...new Set(recs.map((x) => String(x).trim()).filter(Boolean))];
+
+  let mergedBasis = existing.basis || "";
+  if (
+    incoming.basis &&
+    normalizeText(incoming.basis) !== normalizeText(existing.basis)
+  ) {
+    mergedBasis = `${existing.basis || ""}${
+      existing.basis ? "\n\n" : ""
+    }(Merged note)\n${incoming.basis}`;
+  }
+
+  return {
+    ...existing,
+    domain: existing.domain === "Unknown" ? incoming.domain : existing.domain,
+    control: existing.control === "Unknown" ? incoming.control : existing.control,
+    clause: existing.clause || incoming.clause || "",
+    type: existing.type || incoming.type || "Observation",
+    basis: mergedBasis,
+    source_observation: existing.source_observation || incoming.source_observation || "",
+    recommendation: uniqRecs,
+    confidence: Math.max(existing.confidence || 0.5, incoming.confidence || 0.5),
+  };
+}
+
+// ---------- GET findings ----------
 router.get("/findings", async (req, res) => {
   try {
-    const r = await q(
-      `SELECT * FROM ia_findings ORDER BY created_at DESC LIMIT 500`,
-      []
-    );
-    res.json({ rows: r.rows });
+    const rows = await getAllFindings();
+    return res.json({ rows });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Failed to load findings", details: e.message });
+    return res.status(500).json({
+      error: "Failed to load findings",
+      details: e?.message || String(e),
+    });
   }
 });
 
+// ---------- PATCH finding ----------
 router.patch("/findings/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ error: "Bad id" });
-
-    const patch = req.body || {};
-    
-    if (patch.source_observation) {
-      patch.embedding = await embedText(patch.source_observation);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Invalid id" });
     }
 
-    const updated = await updateFinding(id, patch);
-    if (!updated) return res.status(404).json({ error: "Not found" });
-    res.json(updated);
+    const patch = req.body || {};
+    const updated = await updateFindingById(id, patch);
+    if (!updated) return res.status(404).json({ error: "Finding not found" });
+
+    return res.json(updated);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Failed to update finding", details: e.message });
+    return res.status(500).json({
+      error: "Failed to update finding",
+      details: e?.message || String(e),
+    });
   }
 });
 
+// ---------- DELETE finding ----------
 router.delete("/findings/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    await q(`DELETE FROM ia_findings WHERE id = $1`, [id]);
-    res.json({ ok: true });
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Invalid id" });
+    }
+
+    await deleteFindingById(id);
+    return res.json({ ok: true });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Failed to delete finding", details: e.message });
+    return res.status(500).json({
+      error: "Failed to delete finding",
+      details: e?.message || String(e),
+    });
   }
 });
 
-// ====== MERGE / RESOLVE endpoint ======
-/**
- * POST /api/audit/resolve
- * body: { resolutions: [ { incoming, action, targetId? } ] }
- * action: "merge" | "keep_both" | "keep_existing" | "replace_existing"
- */
+// ---------- RESOLVE conflicts ----------
 router.post("/resolve", async (req, res) => {
   try {
     const { resolutions } = req.body || {};
     if (!Array.isArray(resolutions)) {
-      return res.status(400).json({ error: "resolutions[] required" });
+      return res.status(400).json({ error: "resolutions[] is required" });
     }
 
-    const results = [];
-
-    for (const r0 of resolutions) {
-      const action = r0.action;
-      const incoming = r0.incoming;
-
-      if (!incoming) continue;
-
-      // if targetId provided, we act on that record
-      const targetId = r0.targetId ? Number(r0.targetId) : null;
+    for (const r of resolutions) {
+      const { incoming, action, targetId } = r || {};
+      if (!incoming || !action) continue;
 
       if (action === "keep_existing") {
-        results.push({ action, ok: true });
         continue;
       }
 
       if (action === "keep_both") {
-        // ensure fingerprint unique (if exact duplicate, salt it)
-        const salted = {
+        const semanticText = buildSemanticText(incoming);
+        const embedding = incoming.embedding || (await embedText(semanticText));
+        await insertFinding({
           ...incoming,
-          fingerprint: incoming.fingerprint + "|salt:" + crypto.randomBytes(4).toString("hex"),
-        };
-        const inserted = await insertFinding(salted);
-        results.push({ action, inserted });
+          embedding,
+          embedding_model: "@huggingface/transformers:all-MiniLM-L6-v2",
+        });
         continue;
       }
 
-      if (!targetId || !Number.isFinite(targetId)) {
-        results.push({ action, ok: false, error: "targetId required for merge/replace" });
-        continue;
-      }
+      if (!targetId) continue;
+      const existing = await getFindingById(targetId);
+      if (!existing) continue;
 
       if (action === "replace_existing") {
-        const updated = await updateFinding(targetId, {
-          domain: incoming.domain,
-          control: incoming.control,
-          clause: incoming.clause,
-          type: incoming.type,
-          basis: incoming.basis,
-          source_observation: incoming.source_observation,
-          recommendation: incoming.recommendation,
-          confidence: incoming.confidence,
-          embedding: incoming.embedding,
+        const semanticText = buildSemanticText(incoming);
+        const embedding = incoming.embedding || (await embedText(semanticText));
+
+        await updateFindingById(targetId, {
+          ...incoming,
+          embedding,
         });
-        results.push({ action, updated });
         continue;
       }
 
       if (action === "merge") {
-        // merge recommendations (dedupe)
-        const existing = (await q(`SELECT * FROM ia_findings WHERE id=$1`, [targetId])).rows[0];
-        if (!existing) {
-          results.push({ action, ok: false, error: "target not found" });
-          continue;
-        }
+        const merged = mergeRows(existing, incoming);
+        const semanticText = buildSemanticText(merged);
+        const embedding = await embedText(semanticText);
 
-        const recA = Array.isArray(existing.recommendation) ? existing.recommendation : [];
-        const recB = Array.isArray(incoming.recommendation) ? incoming.recommendation : [];
-        const mergedRec = [...new Set([...recA, ...recB].map((x) => String(x).trim()).filter(Boolean))];
-
-        const merged = await updateFinding(targetId, {
-          // keep existing domain/control/clause unless incoming has better values
-          domain: existing.domain === "Unknown" ? incoming.domain : existing.domain,
-          control: existing.control === "Unknown" ? incoming.control : existing.control,
-          clause: existing.clause || incoming.clause || "",
-          type: existing.type, // keep existing type by default
-          basis: existing.basis || incoming.basis || "",
-          recommendation: mergedRec,
-          confidence: Math.max(existing.confidence ?? 0.5, incoming.confidence ?? 0.5),
+        await updateFindingById(targetId, {
+          ...merged,
+          embedding,
         });
-
-        results.push({ action, merged });
-        continue;
       }
-
-      results.push({ action, ok: false, error: "Unknown action" });
     }
 
-    res.json({ results });
+    const rows = await getAllFindings();
+    return res.json({ rows });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Resolve failed", details: e.message });
+    return res.status(500).json({
+      error: "Failed to resolve conflicts",
+      details: e?.message || String(e),
+    });
   }
 });
 
-// ===== YOUR EXISTING LLM ENDPOINT (kept prompt unchanged) =====
+/**
+ * POST /api/audit/assess
+ * Body: { standard, observationsText }
+ * Returns: { created: [...], conflicts: [...] }
+ */
 router.post("/assess", async (req, res) => {
   try {
     const { standard, observationsText } = req.body || {};
@@ -308,7 +380,7 @@ router.post("/assess", async (req, res) => {
 
     const std = standard || "ISO27001:2022";
 
-    // ===== DO NOT CHANGE THIS PROMPT =====
+  
     const prompt = `
 You are an internal ISMS auditor.
 Task: From the auditor's input text, FIRST split it into distinct audit observations (multiple rows if needed),
@@ -389,42 +461,37 @@ ${observationsText}
           : 0.5,
     }));
 
-    // ===== NEW: DB insert + conflicts =====
     const created = [];
     const conflicts = [];
 
     for (const row of normalized) {
-      row.fingerprint = makeFingerprint(row);
-      row.embedding_model = `fastembed:${EMB_MODEL_NAME}`;
-      row.embedding = await embedText(`${row.source_observation}\n${row.basis}`);
+      const semanticText = buildSemanticText(row);
+      const embedding = await embedText(semanticText);
 
-      // 1) exact duplicate
-      const exact = await findExactByFingerprint(row.fingerprint);
-      if (exact) {
+      const candidates = await findSimilarCandidates({
+        standard: row.standard,
+        control: row.control,
+        embedding,
+      });
+
+      if (candidates.length > 0) {
         conflicts.push({
-          incoming: row,
-          candidates: [{ existing: exact, similarity: 1.0, reason: "Exact match (fingerprint)" }],
+          incoming: {
+            ...row,
+            embedding,
+            embedding_model: "@huggingface/transformers:all-MiniLM-L6-v2",
+          },
+          candidates,
         });
         continue;
       }
 
-      // 2) semantic duplicate candidates
-      const near = await findSimilarByEmbedding(row.embedding, row.standard);
-      const candidates = (near || [])
-        .map((x) => ({
-          existing: x,
-          similarity: Number(x.similarity ?? 0),
-          reason: "Semantic similarity (embedding)",
-        }))
-        .filter((x) => x.similarity >= SIM_THRESHOLD);
+      const inserted = await insertFinding({
+        ...row,
+        embedding,
+        embedding_model: "@huggingface/transformers:all-MiniLM-L6-v2",
+      });
 
-      if (candidates.length > 0) {
-        conflicts.push({ incoming: row, candidates });
-        continue;
-      }
-
-      // 3) insert
-      const inserted = await insertFinding(row);
       created.push(inserted);
     }
 

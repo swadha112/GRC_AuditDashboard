@@ -10,6 +10,10 @@ import GapGenerator from "views/admin/GapsGenerator";
 import SoAGenerator from "views/admin/SoAGenerator";
 import Documents from "views/admin/Documents";
 import InternalAuditGapAssessment from "views/admin/InternalAuditGapAssessment";
+import SoALiteGenerator from "views/admin/SoALiteGenerator";
+import SavedSoAs from "views/admin/SavedSoAs";
+import SavedSoADetail from "views/admin/SavedSoADetail";
+
 // Auth Imports
 import SignIn from "views/auth/SignIn";
 
@@ -21,7 +25,8 @@ import {
   MdPerson,
   MdLock,
   MdAutoAwesome,
-  MdDescription
+  MdDescription,
+  MdAssignment
 } from "react-icons/md";
 
 const routes = [
@@ -32,7 +37,7 @@ const routes = [
     icon: <MdHome className="h-6 w-6" />,
     component: <MainDashboard />,
   },
-  {
+  /* {
     name: "NFT Marketplace",
     layout: "/admin",
     path: "nft-marketplace",
@@ -46,8 +51,8 @@ const routes = [
     icon: <MdBarChart className="h-6 w-6" />,
     path: "data-tables",
     component: <DataTables />,
-  },
-  {
+  }, */
+  /* {
     name: "Profile",
     layout: "/admin",
     path: "profile",
@@ -81,13 +86,34 @@ const routes = [
     path: "documents",
     icon: <MdDescription className="h-6 w-6" />,
     component: <Documents />,
-  },
+  }, */
   {
     name: "IA Gap Assessment",
     layout: "/admin",
     path: "internal-audit-gaps",
     icon: <MdBarChart className="h-6 w-6" />,
     component: <InternalAuditGapAssessment />,
+  },
+  {
+    name: "SoA Lite",
+    layout: "/admin",
+    path: "soa-lite",
+    icon: <MdAssignment className="h-6 w-6" />,
+    component: <SoALiteGenerator />,
+  },
+  {
+    name: "Saved SoAs",
+    layout: "/admin",
+    path: "saved-soas",
+    icon: <MdDescription className="h-6 w-6" />,
+    component: <SavedSoAs />,
+  },
+  {
+    name: "Saved SoA Detail",
+    layout: "/admin",
+    path: "saved-soas/:id",
+    component: <SavedSoADetail />,
+    invisible: true,
   },
 ];
 export default routes;

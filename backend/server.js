@@ -6,6 +6,8 @@ import gapsRoute from "./routes/gapsRoute.js";
 import soaRoute from "./routes/soaRoute.js";
 import docsRoute from "./routes/docRoute.js";
 import auditGapRoute from "./routes/auditGapRoute.js";
+import soaLiteRoute from "./routes/soaLiteRoute.js";
+import soaRecordRoute from "./routes/soaRecordRoute.js";
 
 dotenv.config();
 
@@ -61,5 +63,7 @@ app.use("/api/gaps", gapsRoute);
 app.use("/api/soa", soaRoute);
 app.use("/api/docs", docsRoute);
 app.use("/api/audit", auditGapRoute);
+app.use("/api/soa-lite", soaLiteRoute);
+app.use("/api/soa-records", soaRecordRoute);
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

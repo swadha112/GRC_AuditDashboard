@@ -1,0 +1,111 @@
+DROP TABLE IF EXISTS ia_findings;
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE ia_findings (
+  id BIGSERIAL PRIMARY KEY,
+  standard TEXT NOT NULL DEFAULT 'ISO27001:2022',
+  domain TEXT NOT NULL DEFAULT 'Unknown',
+  control TEXT NOT NULL DEFAULT 'Unknown',
+  clause TEXT NOT NULL DEFAULT '',
+  type TEXT NOT NULL DEFAULT 'Observation',
+  basis TEXT NOT NULL DEFAULT '',
+  source_observation TEXT NOT NULL,
+  recommendation JSONB NOT NULL DEFAULT '[]'::jsonb,
+  confidence REAL NOT NULL DEFAULT 0.5,
+
+  embedding vector(384),
+  embedding_model TEXT NOT NULL DEFAULT '@huggingface/transformers:all-MiniLM-L6-v2',
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ia_findings_embedding_idx
+ON ia_findings
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 50);
+
+CREATE INDEX ia_findings_standard_idx ON ia_findings (standard);
+CREATE INDEX ia_findings_control_idx ON ia_findings (control);
+SELECT * FROM ia_findings;
+-- =========================
+-- 1) Main saved SoA record
+-- =========================
+DROP TABLE IF EXISTS soa_actionable_files CASCADE;
+DROP TABLE IF EXISTS soa_actionables CASCADE;
+DROP TABLE IF EXISTS soa_rows CASCADE;
+DROP TABLE IF EXISTS soa_records CASCADE;
+
+CREATE TABLE soa_records (
+  id BIGSERIAL PRIMARY KEY,
+  business_name TEXT NOT NULL UNIQUE,
+  business_text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =========================
+-- 2) SoA rows (one per control)
+-- =========================
+CREATE TABLE soa_rows (
+  id BIGSERIAL PRIMARY KEY,
+  soa_record_id BIGINT NOT NULL REFERENCES soa_records(id) ON DELETE CASCADE,
+
+  standard TEXT NOT NULL DEFAULT 'ISO 27001:2022',
+  domain TEXT NOT NULL,
+  clause TEXT NOT NULL,
+  control TEXT NOT NULL,
+  title TEXT NOT NULL,
+
+  applicability TEXT NOT NULL CHECK (
+    applicability IN ('Yes', 'No', 'Conditional', 'Clarification Needed')
+  ),
+
+  justification TEXT NOT NULL DEFAULT '',
+  clarification_question TEXT NOT NULL DEFAULT '',
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT soa_rows_unique_control_per_record UNIQUE (soa_record_id, control)
+);
+
+-- =========================
+-- 3) Actionables per row
+-- =========================
+CREATE TABLE soa_actionables (
+  id BIGSERIAL PRIMARY KEY,
+  soa_row_id BIGINT NOT NULL REFERENCES soa_rows(id) ON DELETE CASCADE,
+
+  text TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (
+    type IN ('document', 'evidence_note')
+  ),
+  upload_required BOOLEAN NOT NULL DEFAULT FALSE,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =========================
+-- 4) Multiple files per actionable
+-- =========================
+CREATE TABLE soa_actionable_files (
+  id BIGSERIAL PRIMARY KEY,
+  soa_actionable_id BIGINT NOT NULL REFERENCES soa_actionables(id) ON DELETE CASCADE,
+
+  original_name TEXT NOT NULL,
+  stored_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes BIGINT NOT NULL DEFAULT 0,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =========================
+-- 5) Helpful indexes
+-- =========================
+CREATE INDEX idx_soa_rows_record_id ON soa_rows(soa_record_id);
+CREATE INDEX idx_soa_rows_control ON soa_rows(control);
+CREATE INDEX idx_soa_actionables_row_id ON soa_actionables(soa_row_id);
+CREATE INDEX idx_soa_actionable_files_actionable_id ON soa_actionable_files(soa_actionable_id);
