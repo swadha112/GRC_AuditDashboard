@@ -168,14 +168,65 @@ function flattenSoAForExport(full) {
   
     return rows;
   }
-
+  async function touchSoARecordByRowId(rowId) {
+    const out = await q(
+      `SELECT soa_record_id FROM soa_rows WHERE id = $1 LIMIT 1`,
+      [rowId]
+    );
+    const soaRecordId = out.rows[0]?.soa_record_id;
+    if (!soaRecordId) return;
+    await q(`UPDATE soa_records SET updated_at = NOW() WHERE id = $1`, [soaRecordId]);
+  }
+  
+  async function touchSoARecordByActionableId(actionableId) {
+    const out = await q(
+      `SELECT r.soa_record_id
+       FROM soa_actionables a
+       JOIN soa_rows r ON r.id = a.soa_row_id
+       WHERE a.id = $1
+       LIMIT 1`,
+      [actionableId]
+    );
+    const soaRecordId = out.rows[0]?.soa_record_id;
+    if (!soaRecordId) return;
+    await q(`UPDATE soa_records SET updated_at = NOW() WHERE id = $1`, [soaRecordId]);
+  }
+  
+  async function touchSoARecordByFileId(fileId) {
+    const out = await q(
+      `SELECT r.soa_record_id
+       FROM soa_actionable_files f
+       JOIN soa_actionables a ON a.id = f.soa_actionable_id
+       JOIN soa_rows r ON r.id = a.soa_row_id
+       WHERE f.id = $1
+       LIMIT 1`,
+      [fileId]
+    );
+    const soaRecordId = out.rows[0]?.soa_record_id;
+    if (!soaRecordId) return;
+    await q(`UPDATE soa_records SET updated_at = NOW() WHERE id = $1`, [soaRecordId]);
+  }
+  
+  function dedupeRowsByControl(rows) {
+    const out = [];
+    const seen = new Set();
+  
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const key = String(row?.control || "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+    }
+  
+    return out;
+  }
 // -----------------------------
 // Save new SoA
 // POST /api/soa-records
 // -----------------------------
 router.post("/", async (req, res) => {
   try {
-    const { businessName, businessText, rows } = req.body || {};
+    const { businessName, businessText, rows, overwrite = false } = req.body || {};
 
     if (!businessName || !String(businessName).trim()) {
       return res.status(400).json({ error: "businessName is required" });
@@ -187,27 +238,86 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "rows[] is required" });
     }
 
+    const cleanBusinessName = String(businessName).trim();
+    const cleanBusinessText = String(businessText).trim();
+    const dedupedRows = dedupeRowsByControl(rows);
+
+    if (!dedupedRows.length) {
+      return res.status(400).json({ error: "No valid unique rows to save" });
+    }
+
     const existing = await q(
       `SELECT id FROM soa_records WHERE business_name = $1 LIMIT 1`,
-      [String(businessName).trim()]
+      [cleanBusinessName]
     );
-    if (existing.rows[0]) {
+
+    let soaRecordId;
+
+    if (existing.rows[0] && !overwrite) {
       return res.status(409).json({
         error: "Business name already exists",
-        details: "Use a different business name or later we can add update/overwrite flow.",
+        details: "Use a different business name or overwrite the existing SoA.",
       });
     }
 
-    const recRes = await q(
-      `INSERT INTO soa_records (business_name, business_text)
-       VALUES ($1, $2)
-       RETURNING id`,
-      [String(businessName).trim(), String(businessText).trim()]
-    );
+    if (existing.rows[0] && overwrite) {
+      soaRecordId = existing.rows[0].id;
 
-    const soaRecordId = recRes.rows[0].id;
+      const existingRowsRes = await q(
+        `SELECT id FROM soa_rows WHERE soa_record_id = $1`,
+        [soaRecordId]
+      );
+      const existingRowIds = existingRowsRes.rows.map((r) => r.id);
 
-    for (const row of rows) {
+      if (existingRowIds.length) {
+        const existingActionablesRes = await q(
+          `SELECT id FROM soa_actionables WHERE soa_row_id = ANY($1::bigint[])`,
+          [existingRowIds]
+        );
+        const existingActionableIds = existingActionablesRes.rows.map((a) => a.id);
+
+        if (existingActionableIds.length) {
+          const existingFilesRes = await q(
+            `SELECT id, stored_name FROM soa_actionable_files WHERE soa_actionable_id = ANY($1::bigint[])`,
+            [existingActionableIds]
+          );
+
+          for (const f of existingFilesRes.rows) {
+            try {
+              await fs.unlink(path.join(UPLOAD_DIR, f.stored_name));
+            } catch {
+              // ignore missing physical file
+            }
+          }
+
+          await q(
+            `DELETE FROM soa_actionable_files WHERE soa_actionable_id = ANY($1::bigint[])`,
+            [existingActionableIds]
+          );
+        }
+
+        await q(`DELETE FROM soa_actionables WHERE soa_row_id = ANY($1::bigint[])`, [existingRowIds]);
+        await q(`DELETE FROM soa_rows WHERE soa_record_id = $1`, [soaRecordId]);
+      }
+
+      await q(
+        `UPDATE soa_records
+         SET business_text = $1,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [cleanBusinessText, soaRecordId]
+      );
+    } else {
+      const recRes = await q(
+        `INSERT INTO soa_records (business_name, business_text)
+         VALUES ($1, $2)
+         RETURNING id`,
+        [cleanBusinessName, cleanBusinessText]
+      );
+      soaRecordId = recRes.rows[0].id;
+    }
+
+    for (const row of dedupedRows) {
       const rowRes = await q(
         `INSERT INTO soa_rows
           (soa_record_id, standard, domain, clause, control, title, applicability, justification, clarification_question)
@@ -246,8 +356,14 @@ router.post("/", async (req, res) => {
       }
     }
 
+    await q(`UPDATE soa_records SET updated_at = NOW() WHERE id = $1`, [soaRecordId]);
+
     const full = await buildFullSoARecord(soaRecordId);
-    return res.json(full);
+    return res.json({
+      ...full,
+      saved_row_count: full?.rows?.length || 0,
+      overwrite_used: Boolean(overwrite),
+    });
   } catch (e) {
     console.error(e);
     return res.status(500).json({
@@ -256,7 +372,6 @@ router.post("/", async (req, res) => {
     });
   }
 });
-
 // -----------------------------
 // List saved SoAs
 // GET /api/soa-records
@@ -329,7 +444,7 @@ router.patch("/rows/:rowId", async (req, res) => {
     if (!updated.rows[0]) {
       return res.status(404).json({ error: "SoA row not found" });
     }
-
+    await touchSoARecordByRowId(rowId);
     return res.json(updated.rows[0]);
   } catch (e) {
     console.error(e);
@@ -385,7 +500,7 @@ router.patch("/rows/:rowId/actionables", async (req, res) => {
         ]
       );
     }
-
+    await touchSoARecordByRowId(rowId);
     return res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -441,7 +556,7 @@ router.post(
         );
         inserted.push(out.rows[0]);
       }
-
+      await touchSoARecordByActionableId(actionableId);
       return res.json({ files: inserted });
     } catch (e) {
       console.error(e);
@@ -532,7 +647,7 @@ router.delete("/files/:fileId", async (req, res) => {
     if (!file) return res.status(404).json({ error: "File not found" });
 
     const filePath = path.join(UPLOAD_DIR, file.stored_name);
-
+    await touchSoARecordByFileId(fileId);
     await q(`DELETE FROM soa_actionable_files WHERE id = $1`, [fileId]);
 
     try {
@@ -540,7 +655,7 @@ router.delete("/files/:fileId", async (req, res) => {
     } catch {
         // ignore if already missing
       }
-
+      
     return res.json({ ok: true });
   } catch (e) {
     console.error(e);
