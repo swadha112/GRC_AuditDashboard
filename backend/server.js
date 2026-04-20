@@ -3,11 +3,12 @@ import dotenv from "dotenv";
 import cors from "cors";
 
 import gapsRoute from "./routes/gapsRoute.js";
-import soaRoute from "./routes/soaRoute.js";
 import docsRoute from "./routes/docRoute.js";
 import auditGapRoute from "./routes/auditGapRoute.js";
 import soaLiteRoute from "./routes/soaLiteRoute.js";
 import soaRecordRoute from "./routes/soaRecordRoute.js";
+import evidenceAssessmentRoute from "./routes/evidenceAssessmentRoute.js";
+import complianceCalendarRoute from "./routes/complianceCalendarRoute.js";
 
 dotenv.config();
 
@@ -60,10 +61,12 @@ process.on("uncaughtException", (err) => {
 
 // Mount routes
 app.use("/api/gaps", gapsRoute);
-app.use("/api/soa", soaRoute);
 app.use("/api/docs", docsRoute);
 app.use("/api/audit", auditGapRoute);
 app.use("/api/soa-lite", soaLiteRoute);
 app.use("/api/soa-records", soaRecordRoute);
+app.use("/api/evidence-assessment", evidenceAssessmentRoute);
+app.use("/api/compliance-calendar", complianceCalendarRoute);
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

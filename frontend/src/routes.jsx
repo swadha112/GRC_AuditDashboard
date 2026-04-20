@@ -7,12 +7,14 @@ import Profile from "views/admin/profile";
 import DataTables from "views/admin/tables";
 import RTLDefault from "views/rtl/default";
 import GapGenerator from "views/admin/GapsGenerator";
-import SoAGenerator from "views/admin/SoAGenerator";
+
 import Documents from "views/admin/Documents";
 import InternalAuditGapAssessment from "views/admin/InternalAuditGapAssessment";
 import SoALiteGenerator from "views/admin/SoALiteGenerator";
 import SavedSoAs from "views/admin/SavedSoAs";
 import SavedSoADetail from "views/admin/SavedSoADetail";
+import EvidenceAssessment from "views/admin/evidenceAssessment/index";
+import ComplianceCalendar from "views/admin/complianceCalendar";
 
 // Auth Imports
 import SignIn from "views/auth/SignIn";
@@ -26,7 +28,9 @@ import {
   MdLock,
   MdAutoAwesome,
   MdDescription,
-  MdAssignment
+  MdAssignment,
+  MdOutlineCalendarMonth,
+  MdOutlineFactCheck,
 } from "react-icons/md";
 
 const routes = [
@@ -115,5 +119,19 @@ const routes = [
     component: <SavedSoADetail />,
     invisible: true,
   },
+  {
+    name: "Evidence Assessment",
+    layout: "/admin",
+    path: "evidence-assessment",
+    icon: <MdOutlineFactCheck className="h-6 w-6" />,
+    component: <EvidenceAssessment />,
+  },
+  {
+    name: "Compliance Calendar",
+    layout: "/admin",
+    path: "compliance-calendar",
+    icon: <MdOutlineCalendarMonth className="h-6 w-6" />,
+    component: <ComplianceCalendar />,
+  }
 ];
 export default routes;

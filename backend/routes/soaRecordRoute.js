@@ -5,7 +5,7 @@ import path from "path";
 import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
 import { q } from "../db.js";
-
+import crypto from "crypto";
 const router = express.Router();
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "soa-evidence");
@@ -13,7 +13,10 @@ const UPLOAD_DIR = path.join(process.cwd(), "uploads", "soa-evidence");
 async function ensureUploadDir() {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
 }
-
+async function computeFileHash(filePath) {
+  const fileBuffer = await fs.readFile(filePath);
+  return crypto.createHash("sha256").update(fileBuffer).digest("hex");
+}
 function nowSafeName(name) {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}_${String(name).replace(/[^a-zA-Z0-9._-]/g, "_")}`;
 }
@@ -540,22 +543,27 @@ router.post(
 
       const inserted = [];
       for (const f of files) {
+        const filePath = path.join(UPLOAD_DIR, f.filename);
+        const fileHash = await computeFileHash(filePath);
+
         const out = await q(
           `INSERT INTO soa_actionable_files
-            (soa_actionable_id, original_name, stored_name, mime_type, size_bytes)
-           VALUES
-            ($1,$2,$3,$4,$5)
-           RETURNING *`,
+            (soa_actionable_id, original_name, stored_name, mime_type, size_bytes, file_hash)
+          VALUES
+            ($1,$2,$3,$4,$5,$6)
+          RETURNING *`,
           [
             actionableId,
             f.originalname,
             f.filename,
             f.mimetype || "application/octet-stream",
             f.size || 0,
+            fileHash,
           ]
         );
-        inserted.push(out.rows[0]);
-      }
+
+  inserted.push(out.rows[0]);
+}
       await touchSoARecordByActionableId(actionableId);
       return res.json({ files: inserted });
     } catch (e) {
@@ -667,109 +675,377 @@ router.delete("/files/:fileId", async (req, res) => {
 });
 
 // -----------------------------
-// Export PDF
+// Export PDF  (professional layout)
 // GET /api/soa-records/:id/export/pdf
 // -----------------------------
 router.get("/:id/export/pdf", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res.status(400).json({ error: "Invalid id" });
-    }
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
     const full = await buildFullSoARecord(id);
     if (!full) return res.status(404).json({ error: "SoA record not found" });
 
     const filename = `${safeFileName(full.business_name)}_soa.pdf`;
-
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
 
-    const doc = new PDFDocument({
-      margin: 40,
-      size: "A4",
-      bufferPages: true,
-    });
+    // ── Palette ──────────────────────────────────────────
+    const C = {
+      brand:  "#4318FF",
+      navy:   "#1B254B",
+      gray:   "#A3AED0",
+      light:  "#F4F7FE",
+      border: "#E2E8F0",
+      green:  "#01B574",
+      red:    "#EE5D50",
+      yellow: "#FFB547",
+      cyan:   "#6AD2FF",
+      white:  "#FFFFFF",
+    };
 
+    const PAGE_W = 595.28;
+    const PAGE_H = 841.89;
+    const M      = 40;           // margin
+    const CW     = PAGE_W - M * 2; // content width
+
+    const rows     = full.rows || [];
+    const missing  = rows.filter(r => (r.actionables||[]).some(a => a.upload_required && (!a.files||a.files.length===0))).length;
+    const complete = rows.length - missing;
+    const pct      = rows.length ? Math.round((complete / rows.length) * 100) : 0;
+
+    const doc = new PDFDocument({ margin: 0, size: "A4", bufferPages: true });
     doc.pipe(res);
 
-    doc.fontSize(18).text("Statement of Applicability", { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(12).fillColor("black").text(`Business Name: ${full.business_name}`);
-    doc.fontSize(10).text(`Created: ${new Date(full.created_at).toLocaleString()}`);
-    doc.fontSize(10).text(`Updated: ${new Date(full.updated_at).toLocaleString()}`);
-    doc.moveDown();
+    // ── Helper: draw a filled rounded-ish rect (PDFKit uses rect for simplicity) ──
+    function fillRect(x, y, w, h, color) {
+      doc.save().rect(x, y, w, h).fill(color).restore();
+    }
 
-    doc.fontSize(12).text("Business Function", { underline: true });
-    doc.fontSize(10).text(full.business_text || "");
-    doc.moveDown();
+    // ── Helper: draw table cell border ──
+    function cellBorder(x, y, w, h) {
+      doc.save().rect(x, y, w, h).stroke(C.border).lineWidth(0.5).restore();
+    }
 
-    for (const row of full.rows || []) {
-      const rowMissingEvidence = (row.actionables || []).some(
-        (a) => a.upload_required && (!a.files || a.files.length === 0)
-      );
+    // ── Helper: safe text (avoid PDFKit errors from null) ──
+    function t(v) { return String(v == null ? "" : v); }
 
-      doc
-        .fontSize(11)
-        .fillColor("black")
-        .text(`${row.control} — ${row.title}`, { underline: true });
+    // ── Helper: applicability color ──
+    function appColor(v) {
+      const s = (v||"").toLowerCase();
+      if (s === "yes")                 return C.green;
+      if (s === "no")                  return C.red;
+      if (s === "conditional")         return C.yellow;
+      if (s === "clarification needed") return C.cyan;
+      return C.gray;
+    }
 
-      doc.fontSize(10).fillColor("black").text(`Standard: ${row.standard}`);
-      doc.fontSize(10).text(`Domain: ${row.domain}`);
-      doc.fontSize(10).text(`Clause: ${row.clause}`);
-      doc.fontSize(10).text(`Applicability: ${row.applicability}`);
-      doc.fontSize(10).text(`Justification: ${row.justification || "-"}`);
+    // ══════════════════════════════════════════════════════
+    // PAGE 1 — COVER
+    // ══════════════════════════════════════════════════════
 
-      doc
-        .fontSize(10)
-        .fillColor(rowMissingEvidence ? "red" : "green")
-        .text(`Evidence Status: ${rowMissingEvidence ? "Missing Evidence" : "Complete"}`);
-      doc.fillColor("black");
+    // Top brand band
+    fillRect(0, 0, PAGE_W, 180, C.brand);
 
-      if (row.clarification_question) {
-        doc.fontSize(10).text(`Clarification Question: ${row.clarification_question}`);
-      }
+    // Accent stripe
+    fillRect(0, 180, PAGE_W, 6, "#3311DB");
 
-      doc.moveDown(0.3);
-      doc.fontSize(10).text("Actionables / Evidence:", { underline: true });
+    // Title
+    doc.font("Helvetica-Bold").fontSize(24).fillColor(C.white)
+       .text("Statement of Applicability", M, 52, { width: CW });
+    doc.font("Helvetica").fontSize(11).fillColor("rgba(255,255,255,0.75)")
+       .text("ISO 27001:2022  —  Information Security Management", M, 86, { width: CW });
 
-      if (!row.actionables || row.actionables.length === 0) {
-        doc.fontSize(10).text("- None");
-      } else {
-        for (const a of row.actionables) {
-          const missingThisActionable =
-            a.upload_required && (!a.files || a.files.length === 0);
+    // Business name bar
+    fillRect(0, 186, PAGE_W, 64, C.navy);
+    doc.font("Helvetica-Bold").fontSize(17).fillColor(C.white)
+       .text(t(full.business_name), M, 204, { width: CW });
 
-          doc.fontSize(10).fillColor("black").text(`- ${a.text}`);
-          doc.fontSize(9).text(`  Type: ${a.type === "document" ? "Document" : "Evidence / activity note"}`);
-          doc.fontSize(9).text(`  Upload Required: ${a.upload_required ? "Yes" : "No"}`);
-          doc
-            .fontSize(9)
-            .fillColor(missingThisActionable ? "red" : "green")
-            .text(`  Evidence Status: ${missingThisActionable ? "Missing Evidence" : "Complete"}`);
-          doc.fillColor("black");
+    // Metadata row
+    const metaY = 278;
+    const metaCols = [
+      { label: "GENERATED",     value: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) },
+      { label: "LAST UPDATED",  value: new Date(full.updated_at).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) },
+      { label: "PREPARED BY",   value: "GRC Audit Dashboard" },
+      { label: "STANDARD",      value: "ISO/IEC 27001:2022" },
+    ];
+    metaCols.forEach((col, i) => {
+      const x = M + i * 130;
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.gray).text(col.label, x, metaY);
+      doc.font("Helvetica").fontSize(9).fillColor(C.navy).text(col.value, x, metaY + 13);
+    });
 
-          const files = a.files || [];
-          if (files.length) {
-            doc.fontSize(9).text(`  Files: ${files.map((f) => f.original_name).join(", ")}`);
-          }
+    // Divider
+    fillRect(M, metaY + 38, CW, 1, C.border);
+
+    // Stats cards
+    const statsY = metaY + 52;
+    const statItems = [
+      { label: "TOTAL CONTROLS",   value: String(rows.length), color: C.brand  },
+      { label: "COMPLETE",          value: String(complete),    color: C.green  },
+      { label: "MISSING EVIDENCE",  value: String(missing),     color: C.red    },
+      { label: "COMPLETION RATE",   value: `${pct}%`,           color: pct >= 80 ? C.green : pct >= 50 ? C.yellow : C.red },
+    ];
+    const statW = Math.floor(CW / 4) - 4;
+    statItems.forEach((s, i) => {
+      const x = M + i * (statW + 5);
+      fillRect(x, statsY, statW, 64, C.light);
+      // Left accent bar
+      fillRect(x, statsY, 3, 64, s.color);
+      doc.font("Helvetica-Bold").fontSize(22).fillColor(s.color)
+         .text(s.value, x + 10, statsY + 10, { width: statW - 14, align: "center" });
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor(C.gray)
+         .text(s.label, x + 10, statsY + 42, { width: statW - 14, align: "center" });
+    });
+
+    // Business function section
+    if (full.business_text) {
+      const bfY = statsY + 86;
+      fillRect(M, bfY, CW, 22, C.navy);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white)
+         .text("BUSINESS FUNCTION", M + 10, bfY + 7);
+
+      const bfBodyY = bfY + 28;
+      doc.font("Helvetica").fontSize(9).fillColor(C.navy)
+         .text(t(full.business_text), M, bfBodyY, { width: CW, lineGap: 2 });
+    }
+
+    // Footer note
+    doc.font("Helvetica").fontSize(8).fillColor(C.gray)
+       .text("CONFIDENTIAL — For internal audit use only", M, PAGE_H - 36, { width: CW, align: "center" });
+
+    // ══════════════════════════════════════════════════════
+    // PAGE 2+ — CONTROLS TABLE
+    // ══════════════════════════════════════════════════════
+
+    // Column definitions (total = CW = 515.28)
+    const cols = [
+      { key: "control",         header: "Control",       w: 52,  bold: true  },
+      { key: "domain",          header: "Domain",        w: 78,  bold: false },
+      { key: "clause",          header: "Clause",        w: 44,  bold: false },
+      { key: "title",           header: "Title",         w: 128, bold: false },
+      { key: "applicability",   header: "Applicability", w: 72,  bold: false },
+      { key: "justification",   header: "Justification", w: 141, bold: false },
+    ];
+    // Total = 52+78+44+128+72+141 = 515 ✓
+
+    const TABLE_X  = M;
+    const HDR_H    = 28;
+    const CELL_PAD = 5;
+    const PAGE_BOT = PAGE_H - 44;  // bottom boundary before footer
+
+    let curY = 0;
+    let pageNum = 1;
+
+    function addTablePage() {
+      doc.addPage({ margin: 0, size: "A4" });
+      pageNum++;
+
+      // Page header band
+      fillRect(0, 0, PAGE_W, 28, C.navy);
+      doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.white)
+         .text(t(full.business_name) + "  —  Statement of Applicability  (ISO 27001:2022)", M, 10, { width: CW - 60 });
+      doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.55)")
+         .text(`Page ${pageNum}`, PAGE_W - M - 40, 10, { width: 40, align: "right" });
+
+      curY = 36;
+      drawTableHeader();
+    }
+
+    function drawTableHeader() {
+      fillRect(TABLE_X, curY, CW, HDR_H, C.brand);
+      let cx = TABLE_X;
+      cols.forEach(col => {
+        doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white)
+           .text(col.header.toUpperCase(), cx + CELL_PAD, curY + 10, { width: col.w - CELL_PAD * 2, lineBreak: false });
+        cx += col.w;
+      });
+      curY += HDR_H;
+    }
+
+    // Start first table page
+    addTablePage();
+
+    rows.forEach((row, idx) => {
+      const isMissing = (row.actionables||[]).some(a => a.upload_required && (!a.files||a.files.length===0));
+
+      const cellValues = {
+        control:       t(row.control),
+        domain:        t(row.domain),
+        clause:        t(row.clause),
+        title:         t(row.title),
+        applicability: t(row.applicability),
+        justification: t(row.justification) || "—",
+      };
+
+      // Calculate row height
+      let rowH = 22;
+      cols.forEach(col => {
+        const h = doc.heightOfString(cellValues[col.key], { width: col.w - CELL_PAD * 2 - 1, fontSize: 8 }) + CELL_PAD * 2;
+        if (h > rowH) rowH = h;
+      });
+      rowH = Math.max(rowH, 22);
+
+      // Page break
+      if (curY + rowH > PAGE_BOT) addTablePage();
+
+      // Row background (alternating)
+      const rowBg = idx % 2 === 0 ? C.white : C.light;
+      fillRect(TABLE_X, curY, CW, rowH, rowBg);
+
+      // Missing-evidence left accent
+      if (isMissing) fillRect(TABLE_X, curY, 3, rowH, C.red);
+
+      // Draw cells
+      let cx = TABLE_X;
+      cols.forEach(col => {
+        cellBorder(cx, curY, col.w, rowH);
+
+        let textColor = C.navy;
+        let font = col.bold ? "Helvetica-Bold" : "Helvetica";
+
+        if (col.key === "applicability") {
+          // Draw colored dot + bold colored text
+          const badgeColor = appColor(cellValues[col.key]);
+          fillRect(cx + CELL_PAD, curY + CELL_PAD + 3, 4, 4, badgeColor);
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(badgeColor)
+             .text(cellValues[col.key], cx + CELL_PAD + 8, curY + CELL_PAD, { width: col.w - CELL_PAD * 2 - 8, lineBreak: true });
+        } else {
+          if (col.key === "control") textColor = C.brand;
+          doc.font(font).fontSize(8).fillColor(textColor)
+             .text(cellValues[col.key], cx + CELL_PAD, curY + CELL_PAD, { width: col.w - CELL_PAD * 2, lineBreak: true });
         }
-      }
 
-      doc.moveDown();
+        cx += col.w;
+      });
 
-      if (doc.y > 700) {
-        doc.addPage();
+      // Evidence status column (draw after cells loop to avoid overlap)
+      // We already drew all cols. Show missing/complete in justification cell bottom if needed
+      curY += rowH;
+    });
+
+    // ══════════════════════════════════════════════════════
+    // EVIDENCE APPENDIX — one section per control that has actionables
+    // ══════════════════════════════════════════════════════
+    const withActions = rows.filter(r => (r.actionables||[]).length > 0);
+
+    if (withActions.length > 0) {
+      doc.addPage({ margin: 0, size: "A4" });
+      pageNum++;
+
+      fillRect(0, 0, PAGE_W, 28, C.navy);
+      doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.white)
+         .text("Evidence & Actionables  —  " + t(full.business_name), M, 10, { width: CW - 60 });
+      doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.55)")
+         .text(`Page ${pageNum}`, PAGE_W - M - 40, 10, { width: 40, align: "right" });
+
+      // Section title
+      curY = 44;
+      doc.font("Helvetica-Bold").fontSize(13).fillColor(C.navy)
+         .text("Evidence & Actionables", M, curY);
+      doc.font("Helvetica").fontSize(9).fillColor(C.gray)
+         .text("Required actions and uploaded evidence for each control", M, curY + 17);
+      curY += 38;
+
+      for (const row of withActions) {
+        const rowMissing = (row.actionables||[]).some(a => a.upload_required && (!a.files||a.files.length===0));
+        const statusColor = rowMissing ? C.red : C.green;
+
+        // Estimate header + content height for page-break check
+        if (curY + 50 > PAGE_BOT) {
+          doc.addPage({ margin: 0, size: "A4" });
+          pageNum++;
+          fillRect(0, 0, PAGE_W, 28, C.navy);
+          doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.white)
+             .text("Evidence & Actionables  —  " + t(full.business_name), M, 10, { width: CW - 60 });
+          doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.55)")
+             .text(`Page ${pageNum}`, PAGE_W - M - 40, 10, { width: 40, align: "right" });
+          curY = 44;
+        }
+
+        // Control header band
+        const headerBg = rowMissing ? "#FFF5F5" : "#F0FFF8";
+        fillRect(M, curY, CW, 24, headerBg);
+        fillRect(M, curY, 4, 24, statusColor);
+
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.navy)
+           .text(`${t(row.control)}  —  ${t(row.title)}`, M + 10, curY + 7, { width: CW - 90, lineBreak: false });
+
+        // Status badge on right
+        const badgeLabel = rowMissing ? "Missing Evidence" : "Complete";
+        const badgeW = 90;
+        fillRect(M + CW - badgeW, curY + 5, badgeW, 14, rowMissing ? "#FFEEEE" : "#E6FAF2");
+        doc.font("Helvetica-Bold").fontSize(7).fillColor(statusColor)
+           .text(badgeLabel, M + CW - badgeW, curY + 8, { width: badgeW, align: "center" });
+
+        curY += 30;
+
+        for (const a of row.actionables) {
+          const aMissing = a.upload_required && (!a.files||a.files.length===0);
+
+          const aTextH = doc.heightOfString(t(a.text), { width: CW - 30, fontSize: 8.5 });
+          const aBlockH = aTextH + (a.upload_required ? 16 : 0) + ((a.files||[]).length * 14) + 18;
+
+          if (curY + aBlockH > PAGE_BOT) {
+            doc.addPage({ margin: 0, size: "A4" });
+            pageNum++;
+            fillRect(0, 0, PAGE_W, 28, C.navy);
+            doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.white)
+               .text("Evidence & Actionables  —  " + t(full.business_name), M, 10, { width: CW - 60 });
+            doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.55)")
+               .text(`Page ${pageNum}`, PAGE_W - M - 40, 10, { width: 40, align: "right" });
+            curY = 44;
+          }
+
+          // Actionable row
+          fillRect(M, curY, 1, aTextH + 8, aMissing ? C.red : C.green);
+          doc.font("Helvetica").fontSize(8.5).fillColor(C.navy)
+             .text(t(a.text), M + 10, curY, { width: CW - 20, lineGap: 1 });
+          curY += aTextH + 6;
+
+          // Type + upload tags
+          const typeLabel = a.type === "document" ? "Document" : "Evidence Note";
+          doc.font("Helvetica-Bold").fontSize(7).fillColor(C.gray)
+             .text(typeLabel.toUpperCase(), M + 10, curY);
+
+          if (a.upload_required) {
+            const uploadLabel = aMissing ? "UPLOAD REQUIRED — MISSING" : "UPLOAD REQUIRED — RECEIVED";
+            doc.font("Helvetica-Bold").fontSize(7).fillColor(aMissing ? C.red : C.green)
+               .text(uploadLabel, M + 10 + 80, curY);
+          }
+          curY += 13;
+
+          // File list
+          for (const f of (a.files||[])) {
+            doc.font("Helvetica").fontSize(7.5).fillColor(C.brand)
+               .text("  " + t(f.original_name), M + 14, curY);
+            curY += 13;
+          }
+
+          curY += 4;
+        }
+
+        // Bottom separator
+        fillRect(M, curY, CW, 1, C.border);
+        curY += 14;
       }
+    }
+
+    // ── Page numbers on all buffered pages ──
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      doc.font("Helvetica").fontSize(7).fillColor(C.gray)
+         .text(
+           `${t(full.business_name)}  |  ISO 27001:2022 SoA  |  Page ${i + 1} of ${range.count}`,
+           M, PAGE_H - 20, { width: CW, align: "center" }
+         );
     }
 
     doc.end();
   } catch (e) {
     console.error(e);
-    return res.status(500).json({
-      error: "Failed to export PDF",
-      details: e?.message || String(e),
-    });
+    return res.status(500).json({ error: "Failed to export PDF", details: e?.message || String(e) });
   }
 });
 // -----------------------------

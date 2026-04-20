@@ -2,79 +2,113 @@ import React, { useMemo, useState } from "react";
 import axios from "axios";
 import Card from "components/card";
 import { ISO27001_CONTROLS } from "../../constants/iso27001Controls";
+import {
+  MdOutlineAutoAwesome,
+  MdOutlineSave,
+  MdOutlineRefresh,
+  MdOutlineEdit,
+  MdOutlineCheck,
+  MdOutlineClose,
+  MdOutlineFilterList,
+  MdOutlineSearch,
+  MdOutlineShield,
+  MdOutlineAdd,
+  MdKeyboardArrowDown,
+  MdKeyboardArrowUp,
+  MdOutlineQuestionAnswer,
+  MdOutlineDescription,
+} from "react-icons/md";
+import {
+  HiDocumentText,
+  HiClipboardDocumentCheck,
+  HiExclamationCircle,
+  HiCheckCircle,
+} from "react-icons/hi2";
 
 const API_BASE = "http://localhost:5001";
 const APPLICABILITY_OPTIONS = ["Yes", "No", "Conditional", "Clarification Needed"];
 const DOMAIN_ORDER = ["Organizational", "People", "Physical", "Technological"];
 
+const DOMAIN_STYLE = {
+  Organizational: { dot: "#4318FF", badge: "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300", bar: "bg-brand-500" },
+  People:         { dot: "#17c1e8", badge: "bg-cyan-50 text-cyan-600 dark:bg-cyan-500/10 dark:text-cyan-300", bar: "bg-cyan-500" },
+  Physical:       { dot: "#FFB547", badge: "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10 dark:text-yellow-300", bar: "bg-yellow-500" },
+  Technological:  { dot: "#01B574", badge: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-300", bar: "bg-green-500" },
+};
+
+const TYPE_OPTIONS = [
+  { value: "document",      label: "Document" },
+  { value: "evidence_note", label: "Evidence / Activity Note" },
+];
+
 function chunkArray(arr, size) {
   const out = [];
-  for (let i = 0; i < arr.length; i += size) {
-    out.push(arr.slice(i, i + size));
-  }
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
 }
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+function getRemainingControls(all, existing) {
+  const s = new Set((existing || []).map((r) => r.control));
+  return all.filter((c) => !s.has(c.control));
 }
 
-function getRemainingControls(allControls, existingRows) {
-  const existingControlSet = new Set((existingRows || []).map((r) => r.control));
-  return allControls.filter((c) => !existingControlSet.has(c.control));
-}
-
+/* ─── Applicability badge ─── */
 function ApplicabilityBadge({ value }) {
   const v = (value || "").toLowerCase();
-  let cls = "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white";
-
-  if (v === "yes") cls = "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-200";
-  if (v === "conditional") cls = "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-200";
-  if (v === "no") cls = "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-200";
-  if (v === "clarification needed") cls = "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200";
-
+  const styles = {
+    yes: "bg-green-50 text-green-700 ring-1 ring-green-200 dark:bg-green-500/10 dark:text-green-300 dark:ring-green-500/20",
+    no: "bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/20",
+    conditional: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-300 dark:ring-yellow-500/20",
+    "clarification needed": "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-300 dark:ring-cyan-500/20",
+  };
   return (
-    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${cls}`}>
-      {value}
+    <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${styles[v] || "bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300"}`}>
+      {value || "—"}
     </span>
   );
 }
 
+/* ─── Save modal ─── */
 function SaveSoAModal({ open, onClose, onSave, saving }) {
   const [businessName, setBusinessName] = useState("");
-
   if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-navy-800">
-        <h3 className="text-lg font-bold text-navy-700 dark:text-white">Save SoA</h3>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-          Enter a business name to save this SoA.
-        </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-navy-800">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white shadow-md shadow-brand-500/30">
+            <MdOutlineSave className="text-lg" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-navy-700 dark:text-white">Save SoA</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Give this SoA a business name</p>
+          </div>
+        </div>
 
         <input
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
-          placeholder="e.g. RetailCo"
-          className="mt-4 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-900 dark:text-white"
+          onKeyDown={(e) => e.key === "Enter" && businessName.trim() && onSave(businessName)}
+          placeholder="e.g. RetailCo HR Department"
+          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-navy-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-900 dark:text-white dark:placeholder-gray-500"
         />
 
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white"
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
             type="button"
           >
-            Cancel
+            <MdOutlineClose className="text-base" /> Cancel
           </button>
           <button
             onClick={() => onSave(businessName)}
-            disabled={saving}
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
+            disabled={saving || !businessName.trim()}
+            className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand-500/30 transition hover:bg-brand-600 disabled:opacity-50"
             type="button"
           >
-            {saving ? "Saving..." : "Save"}
+            <MdOutlineCheck className="text-base" />
+            {saving ? "Saving…" : "Save SoA"}
           </button>
         </div>
       </div>
@@ -82,65 +116,118 @@ function SaveSoAModal({ open, onClose, onSave, saving }) {
   );
 }
 
+/* ─── Structured actionable editor row ─── */
+function ActionableEditorRow({ item, index, onChange, onRemove }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-navy-700">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+          Action #{index + 1}
+        </span>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex h-5 w-5 items-center justify-center rounded-md text-gray-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+        >
+          <MdOutlineClose className="text-sm" />
+        </button>
+      </div>
+      <textarea
+        rows={2}
+        value={item.text}
+        onChange={(e) => onChange({ ...item, text: e.target.value })}
+        placeholder="Describe the required action or evidence…"
+        className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:placeholder-gray-500"
+      />
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div>
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Type</label>
+          <select
+            value={item.type}
+            onChange={(e) => onChange({ ...item, type: e.target.value })}
+            className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-navy-700 outline-none transition focus:border-brand-500 dark:border-white/10 dark:bg-navy-800 dark:text-white"
+          >
+            {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Upload Required</label>
+          <select
+            value={item.upload_required ? "yes" : "no"}
+            onChange={(e) => onChange({ ...item, upload_required: e.target.value === "yes" })}
+            className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-navy-700 outline-none transition focus:border-brand-500 dark:border-white/10 dark:bg-navy-800 dark:text-white"
+          >
+            <option value="yes">Yes — upload required</option>
+            <option value="no">No — activity note only</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Domain section header ─── */
 function DomainSectionHeader({ domain, count, isOpen, onToggle }) {
+  const style = DOMAIN_STYLE[domain] || { dot: "#A3AED0", badge: "bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-400", bar: "bg-gray-400" };
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-navy-800"
+      className="group flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-3.5 text-left transition hover:border-gray-300 hover:bg-gray-50/50 dark:border-white/10 dark:bg-navy-800 dark:hover:bg-white/[0.03]"
     >
-      <div>
-        <div className="text-sm font-bold text-navy-700 dark:text-white">{domain}</div>
-        <div className="text-xs text-gray-600 dark:text-gray-300">
-          {count} row{count !== 1 ? "s" : ""}
-        </div>
+      <div className="flex items-center gap-3">
+        <span className="h-3 w-3 rounded-full" style={{ background: style.dot }} />
+        <span className="text-sm font-bold text-navy-700 dark:text-white">{domain}</span>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${style.badge}`}>
+          {count} control{count !== 1 ? "s" : ""}
+        </span>
       </div>
-      <div className="text-sm font-semibold text-brand-500">{isOpen ? "Hide" : "Show"}</div>
+      {isOpen
+        ? <MdKeyboardArrowUp className="text-lg text-gray-400 transition group-hover:text-brand-500" />
+        : <MdKeyboardArrowDown className="text-lg text-gray-400 transition group-hover:text-brand-500" />
+      }
     </button>
   );
 }
 
-function SummaryCard({ label, value, tone = "default" }) {
-  let cls =
-    "border-gray-200 bg-white text-navy-700 dark:border-white/10 dark:bg-navy-800 dark:text-white";
-  if (tone === "yes") {
-    cls =
-      "border-green-200 bg-green-50 text-green-700 dark:border-green-500/20 dark:bg-green-500/10 dark:text-green-200";
-  }
-  if (tone === "conditional") {
-    cls =
-      "border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-500/20 dark:bg-yellow-500/10 dark:text-yellow-200";
-  }
-  if (tone === "clarification") {
-    cls =
-      "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200";
-  }
-  if (tone === "no") {
-    cls =
-      "border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200";
-  }
-
+/* ─── Summary stat card ─── */
+function SummaryCard({ label, value, icon, tone = "default" }) {
+  const styles = {
+    default:       { card: "bg-lightPrimary dark:bg-white/5", num: "text-navy-700 dark:text-white", label: "text-gray-500 dark:text-gray-400", icon: "bg-white dark:bg-white/10 text-navy-700 dark:text-white" },
+    yes:           { card: "bg-green-50 dark:bg-green-500/10", num: "text-green-700 dark:text-green-300", label: "text-green-600/80 dark:text-green-400/80", icon: "bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-300" },
+    conditional:   { card: "bg-yellow-50 dark:bg-yellow-500/10", num: "text-yellow-700 dark:text-yellow-300", label: "text-yellow-600/80 dark:text-yellow-400/80", icon: "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-300" },
+    clarification: { card: "bg-cyan-50 dark:bg-cyan-500/10", num: "text-cyan-700 dark:text-cyan-300", label: "text-cyan-600/80 dark:text-cyan-400/80", icon: "bg-cyan-100 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-300" },
+    no:            { card: "bg-red-50 dark:bg-red-500/10", num: "text-red-700 dark:text-red-300", label: "text-red-600/80 dark:text-red-400/80", icon: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300" },
+  };
+  const s = styles[tone] || styles.default;
   return (
-    <div className={`rounded-2xl border p-4 ${cls}`}>
-      <div className="text-xs font-semibold uppercase tracking-wide opacity-80">{label}</div>
-      <div className="mt-2 text-2xl font-bold">{value}</div>
-    </div>
-  );
-}
-
-function ProgressBar({ percent }) {
-  return (
-    <div className="w-full">
-      <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
-        <div
-          className="h-full rounded-full bg-brand-500 transition-all duration-500"
-          style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-        />
+    <div className={`flex items-center gap-3 rounded-2xl p-4 ${s.card}`}>
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${s.icon}`}>
+        {icon}
+      </div>
+      <div>
+        <div className={`text-2xl font-bold ${s.num}`}>{value}</div>
+        <div className={`text-[11px] font-semibold uppercase tracking-wide ${s.label}`}>{label}</div>
       </div>
     </div>
   );
 }
 
+/* ─── Progress bar ─── */
+function ProgressBar({ percent, failed }) {
+  return (
+    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
+      <div
+        className={`h-full rounded-full transition-all duration-500 ${failed ? "bg-red-500" : "bg-gradient-to-r from-brand-500 to-cyan-400"}`}
+        style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+      />
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════
+   MAIN COMPONENT
+════════════════════════════════════════════════ */
 export default function SoALiteGenerator() {
   const [businessText, setBusinessText] = useState("");
   const [rows, setRows] = useState([]);
@@ -160,97 +247,67 @@ export default function SoALiteGenerator() {
 
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState("lite");
-
   const [domainFilter, setDomainFilter] = useState("All");
   const [applicabilityFilter, setApplicabilityFilter] = useState("All");
   const [clarificationOnly, setClarificationOnly] = useState(false);
-
-  const [openGroups, setOpenGroups] = useState({
-    Organizational: true,
-    People: true,
-    Physical: true,
-    Technological: true,
-  });
+  const [openGroups, setOpenGroups] = useState({ Organizational: true, People: true, Physical: true, Technological: true });
 
   const [batchProgress, setBatchProgress] = useState({
-    active: false,
-    current: 0,
-    total: 0,
-    percent: 0,
-    message: "",
-    failed: false,
+    active: false, current: 0, total: 0, percent: 0, message: "", failed: false,
   });
 
+  /* ── Derived state ── */
   const filteredRows = useMemo(() => {
     const s = search.trim().toLowerCase();
-
     return rows.filter((r) => {
-      const blob = `${r.standard} ${r.domain} ${r.clause} ${r.control} ${r.title} ${r.applicability} ${r.justification} ${(r.actionables || [])
-        .map((a) => (typeof a === "string" ? a : a?.text || ""))
-        .join(" ")} ${r.clarification_question || ""}`.toLowerCase();
-
-      const matchesSearch = !s || blob.includes(s);
-      const matchesDomain = domainFilter === "All" || r.domain === domainFilter;
-      const matchesApplicability =
-        applicabilityFilter === "All" || r.applicability === applicabilityFilter;
-      const matchesClarification =
-        !clarificationOnly || r.applicability === "Clarification Needed";
-
-      return matchesSearch && matchesDomain && matchesApplicability && matchesClarification;
+      const blob = `${r.standard} ${r.domain} ${r.clause} ${r.control} ${r.title} ${r.applicability} ${r.justification} ${(r.actionables||[]).map((a) => typeof a === "string" ? a : a?.text||"").join(" ")} ${r.clarification_question||""}`.toLowerCase();
+      return (
+        (!s || blob.includes(s)) &&
+        (domainFilter === "All" || r.domain === domainFilter) &&
+        (applicabilityFilter === "All" || r.applicability === applicabilityFilter) &&
+        (!clarificationOnly || r.applicability === "Clarification Needed")
+      );
     });
   }, [rows, search, domainFilter, applicabilityFilter, clarificationOnly]);
 
-  const summary = useMemo(() => {
-    return filteredRows.reduce(
-      (acc, row) => {
-        acc.total += 1;
-        if (row.applicability === "Yes") acc.yes += 1;
-        else if (row.applicability === "Conditional") acc.conditional += 1;
-        else if (row.applicability === "Clarification Needed") acc.clarification += 1;
-        else if (row.applicability === "No") acc.no += 1;
-        return acc;
-      },
-      { total: 0, yes: 0, conditional: 0, clarification: 0, no: 0 }
-    );
-  }, [filteredRows]);
+  const summary = useMemo(() =>
+    filteredRows.reduce((acc, r) => {
+      acc.total++;
+      if (r.applicability === "Yes") acc.yes++;
+      else if (r.applicability === "Conditional") acc.conditional++;
+      else if (r.applicability === "Clarification Needed") acc.clarification++;
+      else if (r.applicability === "No") acc.no++;
+      return acc;
+    }, { total: 0, yes: 0, conditional: 0, clarification: 0, no: 0 }),
+  [filteredRows]);
 
   const groupedRows = useMemo(() => {
-    const groups = {};
-    DOMAIN_ORDER.forEach((d) => {
-      groups[d] = [];
-    });
-
+    const g = {};
+    DOMAIN_ORDER.forEach((d) => { g[d] = []; });
     filteredRows.forEach((r) => {
-      const key = DOMAIN_ORDER.includes(r.domain) ? r.domain : "Other";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(r);
+      const k = DOMAIN_ORDER.includes(r.domain) ? r.domain : "Other";
+      if (!g[k]) g[k] = [];
+      g[k].push(r);
     });
-
-    return groups;
+    return g;
   }, [filteredRows]);
 
   const visibleDomains = useMemo(() => {
-    const ordered = DOMAIN_ORDER.filter((d) => (groupedRows[d] || []).length > 0);
-    const others = Object.keys(groupedRows).filter(
-      (d) => !DOMAIN_ORDER.includes(d) && (groupedRows[d] || []).length > 0
-    );
+    const ordered = DOMAIN_ORDER.filter((d) => (groupedRows[d]||[]).length > 0);
+    const others = Object.keys(groupedRows).filter((d) => !DOMAIN_ORDER.includes(d) && (groupedRows[d]||[]).length > 0);
     return [...ordered, ...others];
   }, [groupedRows]);
 
-  const toggleGroup = (domain) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [domain]: !prev[domain],
-    }));
-  };
+  /* ── Helpers ── */
+  const toggleGroup = (d) => setOpenGroups((p) => ({ ...p, [d]: !p[d] }));
 
-  const normalizeUiRows = (output) => {
-    return output.map((r) => ({
+  const normalizeUiRows = (output) =>
+    output.map((r) => ({
       id: `soa_${r.control}`,
       ...r,
       actionables: Array.isArray(r.actionables)
         ? r.actionables.map((a) => ({
-            text: String(a?.text || "").trim(),
+            text: String(a?.text||"").trim(),
             type: a?.type === "document" ? "document" : "evidence_note",
             upload_required: Boolean(a?.upload_required),
             uploadedFileName: "",
@@ -258,556 +315,379 @@ export default function SoALiteGenerator() {
           }))
         : [],
     }));
-  };
 
   const rebuildGroupState = (nextRows) => {
-    const nextGroups = {};
-    const discoveredDomains = new Set(nextRows.map((r) => r.domain).filter(Boolean));
-    DOMAIN_ORDER.forEach((d) => {
-      nextGroups[d] = true;
-    });
-    discoveredDomains.forEach((d) => {
-      nextGroups[d] = true;
-    });
-    setOpenGroups(nextGroups);
+    const g = {};
+    DOMAIN_ORDER.forEach((d) => { g[d] = true; });
+    new Set(nextRows.map((r) => r.domain).filter(Boolean)).forEach((d) => { g[d] = true; });
+    setOpenGroups(g);
   };
 
+  /* ── Generation ── */
   const runFullGeneration = async ({ freshStart }) => {
-    setError("");
-    setSuccess("");
-
-    if (!businessText.trim()) {
-      setError("Please enter business function.");
-      return;
-    }
-
+    setError(""); setSuccess("");
+    if (!businessText.trim()) { setError("Please enter a business function."); return; }
     setLoading(true);
-
     try {
       if (mode !== "full") {
-        const res = await axios.post(`${API_BASE}/api/soa-lite/generate`, {
-          businessText,
-          mode,
-        });
-
-        const output = Array.isArray(res.data?.rows) ? res.data.rows : [];
-        const normalized = normalizeUiRows(output);
+        const res = await axios.post(`${API_BASE}/api/soa-lite/generate`, { businessText, mode });
+        const normalized = normalizeUiRows(Array.isArray(res.data?.rows) ? res.data.rows : []);
         setRows(normalized);
         rebuildGroupState(normalized);
-        setBatchProgress({
-          active: false,
-          current: 0,
-          total: 0,
-          percent: 0,
-          message: "",
-          failed: false,
-        });
+        setBatchProgress({ active: false, current: 0, total: 0, percent: 0, message: "", failed: false });
         return;
       }
 
       const baseRows = freshStart ? [] : rows;
-      const controlsToRun = freshStart
-        ? ISO27001_CONTROLS
-        : getRemainingControls(ISO27001_CONTROLS, rows);
+      const controlsToRun = freshStart ? ISO27001_CONTROLS : getRemainingControls(ISO27001_CONTROLS, rows);
 
       if (!controlsToRun.length) {
         setSuccess("All controls are already generated.");
-        setBatchProgress({
-          active: true,
-          current: 0,
-          total: 0,
-          percent: 100,
-          message: "Nothing remaining to generate.",
-          failed: false,
-        });
+        setBatchProgress({ active: true, current: 0, total: 0, percent: 100, message: "Nothing remaining.", failed: false });
         return;
       }
 
-      if (freshStart) {
-        setRows([]);
-      }
-
+      if (freshStart) setRows([]);
       const batches = chunkArray(controlsToRun, 8);
-      let accumulatedRows = [...baseRows];
+      let accumulated = [...baseRows];
 
-      setBatchProgress({
-        active: true,
-        current: 0,
-        total: batches.length,
-        percent: 0,
-        message: `Starting ${freshStart ? "full" : "remaining"} generation (0/${batches.length} batches)...`,
-        failed: false,
-      });
+      setBatchProgress({ active: true, current: 0, total: batches.length, percent: 0, message: `Starting (0/${batches.length} batches)…`, failed: false });
 
       for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-
-        setBatchProgress({
-          active: true,
-          current: i,
-          total: batches.length,
-          percent: Math.round((i / batches.length) * 100),
-          message: `Generating batch ${i + 1} of ${batches.length}...`,
-          failed: false,
-        });
-
+        setBatchProgress({ active: true, current: i, total: batches.length, percent: Math.round((i / batches.length) * 100), message: `Batch ${i + 1} of ${batches.length}…`, failed: false });
         try {
-          const res = await axios.post(`${API_BASE}/api/soa-lite/generate-batch`, {
-            businessText,
-            controlsBatch: batch,
-          });
-
-          const output = Array.isArray(res.data?.rows) ? res.data.rows : [];
-          const normalizedBatch = normalizeUiRows(output);
-
-          accumulatedRows = [...accumulatedRows, ...normalizedBatch];
-          setRows(accumulatedRows);
-          rebuildGroupState(accumulatedRows);
-
-          setBatchProgress({
-            active: true,
-            current: i + 1,
-            total: batches.length,
-            percent: Math.round(((i + 1) / batches.length) * 100),
-            message: `Completed ${i + 1} of ${batches.length} batches.`,
-            failed: false,
-          });
-
-          if (i < batches.length - 1) {
-            await sleep(5000);
-          }
-        } catch (batchError) {
-          console.error("Batch failed:", batchError);
-
-          const safeMessage =
-            batchError?.response?.data?.details ||
-            batchError?.response?.data?.error ||
-            batchError?.message ||
-            "Batch generation failed.";
-
-          setBatchProgress({
-            active: true,
-            current: i,
-            total: batches.length,
-            percent: Math.round((i / batches.length) * 100),
-            message: `Stopped at batch ${i + 1} of ${batches.length}.`,
-            failed: true,
-          });
-
-          setError(safeMessage);
-          setSuccess(
-            accumulatedRows.length
-              ? `Generated ${accumulatedRows.length} rows successfully before stopping. Use "Generate Remaining" to continue later.`
-              : ""
-          );
-
+          const res = await axios.post(`${API_BASE}/api/soa-lite/generate-batch`, { businessText, controlsBatch: batches[i] });
+          accumulated = [...accumulated, ...normalizeUiRows(Array.isArray(res.data?.rows) ? res.data.rows : [])];
+          setRows(accumulated);
+          rebuildGroupState(accumulated);
+          setBatchProgress({ active: true, current: i + 1, total: batches.length, percent: Math.round(((i + 1) / batches.length) * 100), message: `Completed ${i + 1} of ${batches.length} batches.`, failed: false });
+          if (i < batches.length - 1) await sleep(5000);
+        } catch (batchErr) {
+          const msg = batchErr?.response?.data?.details || batchErr?.response?.data?.error || batchErr?.message || "Batch failed.";
+          setBatchProgress({ active: true, current: i, total: batches.length, percent: Math.round((i / batches.length) * 100), message: `Stopped at batch ${i + 1}.`, failed: true });
+          setError(msg);
+          if (accumulated.length) setSuccess(`${accumulated.length} rows generated. Use "Generate Remaining" to continue.`);
           return;
         }
       }
 
-      setBatchProgress({
-        active: true,
-        current: batches.length,
-        total: batches.length,
-        percent: 100,
-        message: freshStart
-          ? "Full SoA generation completed."
-          : "Remaining controls generated successfully.",
-        failed: false,
-      });
-
-      setSuccess(
-        freshStart
-          ? "Full SoA generated successfully."
-          : "Remaining controls generated successfully."
-      );
+      setBatchProgress({ active: true, current: batches.length, total: batches.length, percent: 100, message: freshStart ? "Full generation complete." : "Remaining controls generated.", failed: false });
+      setSuccess(freshStart ? "Full SoA generated successfully." : "Remaining controls generated.");
     } catch (e) {
-      console.error(e);
-      setError(
-        e?.response?.data?.details ||
-          e?.response?.data?.error ||
-          e?.message ||
-          "Failed to generate SoA."
-      );
+      setError(e?.response?.data?.details || e?.response?.data?.error || e?.message || "Failed to generate SoA.");
     } finally {
       setLoading(false);
     }
   };
 
-  const generateFresh = async () => {
-    await runFullGeneration({ freshStart: true });
-  };
+  const generateFresh     = () => runFullGeneration({ freshStart: true });
+  const generateRemaining = () => runFullGeneration({ freshStart: false });
 
-  const generateRemaining = async () => {
-    await runFullGeneration({ freshStart: false });
-  };
-
+  /* ── Save ── */
   const saveCurrentSoA = async (businessName, overwrite = false) => {
-    setError("");
-    setSuccess("");
-  
-    if (!businessName || !businessName.trim()) {
-      setError("Business name is required.");
-      return;
-    }
-    if (!rows.length) {
-      setError("Generate SoA first before saving.");
-      return;
-    }
-  
+    setError(""); setSuccess("");
+    if (!businessName?.trim()) { setError("Business name is required."); return; }
+    if (!rows.length) { setError("Generate SoA first."); return; }
     setSavingSoA(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/soa-records`, {
-        businessName,
-        businessText,
-        rows,
-        overwrite,
-      });
-  
+      const res = await axios.post(`${API_BASE}/api/soa-records`, { businessName, businessText, rows, overwrite });
       setSaveOpen(false);
-      setSuccess(
-        overwrite
-          ? `SoA overwritten successfully for "${businessName}" (${res.data?.saved_row_count || rows.length} rows).`
-          : `SoA saved successfully for "${businessName}" (${res.data?.saved_row_count || rows.length} rows).`
-      );
+      setSuccess(`SoA ${overwrite ? "overwritten" : "saved"} for "${businessName}" (${res.data?.saved_row_count || rows.length} rows).`);
     } catch (e) {
-      console.error(e);
-  
       if (e?.response?.status === 409) {
-        const shouldOverwrite = window.confirm(
-          `A saved SoA with the business name "${businessName}" already exists.\n\nDo you want to overwrite it?`
-        );
-  
-        if (shouldOverwrite) {
-          setSavingSoA(false);
-          return saveCurrentSoA(businessName, true);
-        }
+        const ok = window.confirm(`"${businessName}" already exists. Overwrite?`);
+        if (ok) { setSavingSoA(false); return saveCurrentSoA(businessName, true); }
       }
-  
-      setError(
-        e?.response?.data?.details ||
-        e?.response?.data?.error ||
-        "Failed to save SoA."
-      );
+      setError(e?.response?.data?.details || e?.response?.data?.error || "Failed to save SoA.");
     } finally {
       setSavingSoA(false);
     }
   };
-  
+
+  /* ── Row edit (structured actionables) ── */
   const startEdit = (row) => {
     setEditingId(row.id);
     setEditDraft({
       ...row,
-      actionablesText: (row.actionables || [])
-        .map((a) => `${a.text} | ${a.type} | ${a.upload_required ? "true" : "false"}`)
-        .join("\n"),
+      actionablesList: (row.actionables || []).map((a) => ({
+        text: a.text,
+        type: a.type || "evidence_note",
+        upload_required: !!a.upload_required,
+      })),
     });
   };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditDraft(null);
-  };
-
+  const cancelEdit = () => { setEditingId(null); setEditDraft(null); };
   const saveEdit = () => {
     if (!editDraft) return;
-
-    const parsedActionables = String(editDraft.actionablesText || "")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [text = "", type = "evidence_note", uploadFlag = "false"] = line
-          .split("|")
-          .map((x) => x.trim());
-
-        return {
-          text,
-          type: type === "document" ? "document" : "evidence_note",
-          upload_required: uploadFlag === "true",
-          uploadedFileName: "",
-          selectedFile: null,
-        };
-      })
-      .filter((a) => a.text);
-
-    const updated = {
-      ...editDraft,
-      actionables: parsedActionables,
-    };
-
-    delete updated.actionablesText;
-
-    setRows((prev) => prev.map((r) => (r.id === editingId ? updated : r)));
-    setEditingId(null);
-    setEditDraft(null);
+    setRows((prev) => prev.map((r) => r.id === editingId
+      ? { ...editDraft, actionables: (editDraft.actionablesList || []).filter((a) => a.text).map(({ text, type, upload_required }) => ({ text, type, upload_required, uploadedFileName: "", selectedFile: null })) }
+      : r
+    ));
+    setEditingId(null); setEditDraft(null);
   };
 
+  /* ── Re-evaluate ── */
   const reEvaluateRow = async (row) => {
-    if (!clarificationInput.trim()) {
-      setError("Please enter clarification for this row.");
-      return;
-    }
-
-    setClarifyLoading(true);
-    setError("");
-
+    if (!clarificationInput.trim()) { setError("Please enter clarification for this row."); return; }
+    setClarifyLoading(true); setError("");
     try {
       const res = await axios.post(`${API_BASE}/api/soa-lite/re-evaluate-row`, {
         businessText,
-        row: {
-          standard: row.standard,
-          domain: row.domain,
-          clause: row.clause,
-          control: row.control,
-          title: row.title,
-        },
+        row: { standard: row.standard, domain: row.domain, clause: row.clause, control: row.control, title: row.title },
         clarification: clarificationInput,
       });
-
-      const updatedRow = res.data?.row;
-      if (!updatedRow) throw new Error("No row returned");
-
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === row.id
-            ? {
-                ...r,
-                ...updatedRow,
-                actionables: Array.isArray(updatedRow.actionables)
-                  ? updatedRow.actionables.map((a) => ({
-                      text: String(a?.text || "").trim(),
-                      type: a?.type === "document" ? "document" : "evidence_note",
-                      upload_required: Boolean(a?.upload_required),
-                      uploadedFileName: "",
-                      selectedFile: null,
-                    }))
-                  : [],
-              }
-            : r
-        )
-      );
-
-      setClarifyRowId(null);
-      setClarificationInput("");
+      const updated = res.data?.row;
+      if (!updated) throw new Error("No row returned");
+      setRows((prev) => prev.map((r) => r.id === row.id
+        ? { ...r, ...updated, actionables: Array.isArray(updated.actionables) ? updated.actionables.map((a) => ({ text: String(a?.text||"").trim(), type: a?.type === "document" ? "document" : "evidence_note", upload_required: Boolean(a?.upload_required), uploadedFileName: "", selectedFile: null })) : [] }
+        : r
+      ));
+      setClarifyRowId(null); setClarificationInput("");
     } catch (e) {
-      console.error(e);
       setError(e?.response?.data?.error || "Failed to re-evaluate row.");
     } finally {
       setClarifyLoading(false);
     }
   };
 
-  return (
-    <div className="mt-5 grid grid-cols-1 gap-5">
-      <SaveSoAModal
-        open={saveOpen}
-        onClose={() => setSaveOpen(false)}
-        onSave={saveCurrentSoA}
-        saving={savingSoA}
-      />
+  const resetFilters = () => { setSearch(""); setDomainFilter("All"); setApplicabilityFilter("All"); setClarificationOnly(false); };
+  const hasFilters = search || domainFilter !== "All" || applicabilityFilter !== "All" || clarificationOnly;
 
-      <Card className="p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-navy-700 dark:text-white">SoA Generator</h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-              Generate SoA rows in lite or full mode, review them, and save them by business name.
-            </p>
+  /* ════════════════════════════════════════════════
+     RENDER
+  ════════════════════════════════════════════════ */
+  return (
+    <div className="mt-5 space-y-5">
+      <SaveSoAModal open={saveOpen} onClose={() => setSaveOpen(false)} onSave={saveCurrentSoA} saving={savingSoA} />
+
+      {/* ── Input card ── */}
+      <Card className="rounded-[20px] p-6 dark:bg-navy-800">
+        {/* Header row */}
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-md shadow-brand-500/30">
+              <MdOutlineShield className="text-xl" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-navy-700 dark:text-white">SoA Generator</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Generate ISO 27001:2022 controls in lite or full mode, review, and save.
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 md:items-end">
-            <div className="w-full md:w-[220px]">
-              <label className="mb-1 block text-sm font-medium text-navy-700 dark:text-white">
-                Generation Mode
-              </label>
-              <select
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
-              >
-                <option value="lite">Lite (8 controls)</option>
-                <option value="full">Full (93 controls)</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={generateFresh}
-                disabled={loading}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
-                type="button"
-              >
-                {loading ? "Generating..." : "Generate Fresh"}
-              </button>
-
-              {mode === "full" && (
+          {/* Mode + actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Mode toggle */}
+            <div className="flex overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
+              {[
+                { v: "lite", label: "Lite", sub: "~8" },
+                { v: "full", label: "Full", sub: "93" },
+              ].map(({ v, label, sub }) => (
                 <button
-                  onClick={generateRemaining}
-                  disabled={loading}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white disabled:opacity-50"
+                  key={v}
                   type="button"
+                  onClick={() => setMode(v)}
+                  className={`flex items-center gap-1 px-4 py-2 text-sm font-semibold transition-colors ${
+                    mode === v
+                      ? "bg-brand-500 text-white"
+                      : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-navy-800 dark:text-gray-400 dark:hover:bg-white/5"
+                  }`}
                 >
-                  Generate Remaining
+                  {label}
+                  <span className={`rounded-full px-1.5 text-[10px] font-bold ${mode === v ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"}`}>
+                    {sub}
+                  </span>
                 </button>
-              )}
+              ))}
+            </div>
 
+            <button
+              onClick={generateFresh}
+              disabled={loading}
+              className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand-500/30 transition hover:bg-brand-600 disabled:opacity-60"
+              type="button"
+            >
+              {loading
+                ? <><MdOutlineRefresh className="animate-spin text-base" />Generating…</>
+                : <><MdOutlineAutoAwesome className="text-base" />Generate Fresh</>
+              }
+            </button>
+
+            {mode === "full" && (
               <button
-                onClick={() => setSaveOpen(true)}
-                disabled={!rows.length}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white disabled:opacity-50"
+                onClick={generateRemaining}
+                disabled={loading}
+                className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-navy-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
                 type="button"
               >
-                Save
+                <MdOutlineRefresh className="text-base" />
+                Remaining
               </button>
-            </div>
+            )}
+
+            <button
+              onClick={() => setSaveOpen(true)}
+              disabled={!rows.length}
+              className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-100 disabled:opacity-40 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+              type="button"
+            >
+              <MdOutlineSave className="text-base" />
+              Save SoA
+            </button>
           </div>
         </div>
 
-        <textarea
-          className="mt-4 w-full rounded-xl border border-gray-200 bg-white p-3 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
-          rows={7}
-          placeholder="Describe the business function, systems, users, cloud/on-prem setup, data handled, access model, vendors, backups, incidents, logs, etc."
-          value={businessText}
-          onChange={(e) => setBusinessText(e.target.value)}
-        />
+        {/* Business text input */}
+        <div>
+          <label className="mb-1.5 block text-sm font-semibold text-navy-700 dark:text-white">
+            Business Function Description
+          </label>
+          <textarea
+            className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-navy-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-900 dark:text-white dark:placeholder-gray-500"
+            rows={6}
+            placeholder="Describe the business function — systems used, data handled, users, cloud/on-prem setup, access model, vendors, backups, incidents, logs, etc."
+            value={businessText}
+            onChange={(e) => setBusinessText(e.target.value)}
+          />
+          <p className="mt-1 text-right text-xs text-gray-400 dark:text-gray-500">
+            {businessText.trim().split(/\s+/).filter(Boolean).length} words
+          </p>
+        </div>
 
+        {/* Batch progress */}
         {batchProgress.active && mode === "full" && (
-          <div
-            className={`mt-4 rounded-2xl border p-4 ${
-              batchProgress.failed
-                ? "border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10"
-                : "border-brand-200 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-500/10"
-            }`}
-          >
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-navy-700 dark:text-white">
-                  {batchProgress.failed
-                    ? "Full generation stopped"
-                    : loading
-                    ? "Full generation in progress"
-                    : "Full generation status"}
-                </div>
-                <div className="text-sm font-semibold text-brand-500">
-                  {batchProgress.percent}%
-                </div>
-              </div>
-
-              <ProgressBar percent={batchProgress.percent} />
-
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600 dark:text-gray-300">
-                <span>{batchProgress.message}</span>
-                <span>
-                  {batchProgress.current} / {batchProgress.total} batches
-                </span>
-              </div>
+          <div className={`mt-4 rounded-2xl border p-4 ${batchProgress.failed ? "border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10" : "border-brand-200 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-500/10"}`}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-navy-700 dark:text-white">
+                {batchProgress.failed ? "Generation stopped" : loading ? "Generating…" : "Generation complete"}
+              </span>
+              <span className={`text-sm font-bold ${batchProgress.failed ? "text-red-500" : "text-brand-500"}`}>
+                {batchProgress.percent}%
+              </span>
+            </div>
+            <ProgressBar percent={batchProgress.percent} failed={batchProgress.failed} />
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span>{batchProgress.message}</span>
+              <span className="font-semibold">{batchProgress.current}/{batchProgress.total} batches</span>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            <HiExclamationCircle className="mt-0.5 shrink-0" />
             {error}
           </div>
         )}
-
         {success && (
-          <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-200">
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300">
+            <HiCheckCircle className="mt-0.5 shrink-0" />
             {success}
           </div>
         )}
       </Card>
 
-      <Card className="p-6">
-        <div className="mb-4 flex flex-col gap-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-            <SummaryCard label="Total" value={summary.total} />
-            <SummaryCard label="Yes" value={summary.yes} tone="yes" />
-            <SummaryCard label="Conditional" value={summary.conditional} tone="conditional" />
-            <SummaryCard label="Clarification Needed" value={summary.clarification} tone="clarification" />
-            <SummaryCard label="No" value={summary.no} tone="no" />
-          </div>
+      {/* ── Results card ── */}
+      <Card className="rounded-[20px] p-6 dark:bg-navy-800">
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        {/* Summary stat cards */}
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <SummaryCard label="Total"    value={summary.total}         icon={<MdOutlineShield />}        tone="default" />
+          <SummaryCard label="Yes"      value={summary.yes}           icon={<HiCheckCircle />}          tone="yes" />
+          <SummaryCard label="Conditional" value={summary.conditional} icon={<MdOutlineDescription />}  tone="conditional" />
+          <SummaryCard label="Clarify"  value={summary.clarification} icon={<MdOutlineQuestionAnswer />} tone="clarification" />
+          <SummaryCard label="No"       value={summary.no}            icon={<HiExclamationCircle />}    tone="no" />
+        </div>
+
+        {/* Search + filters */}
+        <div className="mb-5 space-y-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-4 dark:border-white/5 dark:bg-white/[0.02]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-navy-700 dark:text-white">
-                SoA Rows ({filteredRows.length}/{rows.length})
+              <h3 className="font-bold text-navy-700 dark:text-white">
+                SoA Controls
+                <span className="ml-2 text-sm font-normal text-gray-400 dark:text-gray-500">
+                  ({filteredRows.length}/{rows.length} shown)
+                </span>
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Human-in-the-loop: review, edit, or clarify only specific rows.
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Human-in-the-loop — review, edit, or clarify individual rows
               </p>
             </div>
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search control / title / justification..."
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white md:w-96"
-            />
+            <div className="relative w-full max-w-xs">
+              <MdOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search control / title…"
+                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-navy-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:placeholder-gray-500"
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <MdOutlineFilterList className="text-lg text-gray-400" />
+
             <select
               value={domainFilter}
               onChange={(e) => setDomainFilter(e.target.value)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-sm text-navy-700 outline-none transition focus:border-brand-500 dark:border-white/10 dark:bg-navy-800 dark:text-white"
             >
               <option value="All">All Domains</option>
-              <option value="Organizational">Organizational</option>
-              <option value="People">People</option>
-              <option value="Physical">Physical</option>
-              <option value="Technological">Technological</option>
+              {DOMAIN_ORDER.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
 
             <select
               value={applicabilityFilter}
               onChange={(e) => setApplicabilityFilter(e.target.value)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-sm text-navy-700 outline-none transition focus:border-brand-500 dark:border-white/10 dark:bg-navy-800 dark:text-white"
             >
               <option value="All">All Applicability</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-              <option value="Conditional">Conditional</option>
-              <option value="Clarification Needed">Clarification Needed</option>
+              {APPLICABILITY_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
 
-            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-navy-700 dark:border-white/10 dark:bg-navy-800 dark:text-white">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-navy-700 transition hover:bg-gray-50 dark:border-white/10 dark:bg-navy-800 dark:text-white">
               <input
                 type="checkbox"
                 checked={clarificationOnly}
                 onChange={(e) => setClarificationOnly(e.target.checked)}
+                className="accent-brand-500"
               />
-              Show only clarification needed
+              Clarification only
             </label>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setDomainFilter("All");
-                setApplicabilityFilter("All");
-                setClarificationOnly(false);
-              }}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white"
-            >
-              Reset Filters
-            </button>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-500 transition hover:border-gray-300 hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
+              >
+                <MdOutlineClose className="text-sm" /> Reset
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Empty state */}
         {visibleDomains.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 px-4 py-6 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">
-            No rows yet. Enter a business function and generate SoA.
+          <div className="flex flex-col items-center py-16 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-lightPrimary dark:bg-white/5">
+              <MdOutlineShield className="text-3xl text-gray-300 dark:text-gray-600" />
+            </div>
+            <p className="font-semibold text-gray-500 dark:text-gray-400">No controls yet</p>
+            <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">
+              Enter a business function above and click Generate Fresh.
+            </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {visibleDomains.map((domain) => {
               const domainRows = groupedRows[domain] || [];
               const isOpen = openGroups[domain] !== false;
+              const style = DOMAIN_STYLE[domain] || { bar: "bg-gray-400" };
 
               return (
-                <div key={domain} className="space-y-3">
+                <div key={domain}>
                   <DomainSectionHeader
                     domain={domain}
                     count={domainRows.length}
@@ -816,187 +696,230 @@ export default function SoALiteGenerator() {
                   />
 
                   {isOpen && (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
-                      <table className="min-w-[1800px] w-full border-collapse">
-                        <thead className="bg-gray-50 dark:bg-white/5">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Standard</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Domain</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Clause</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Control</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Title</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Applicability</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Justification</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Actionables</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Clarification</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300">Edit</th>
-                          </tr>
-                        </thead>
+                    <div className="mt-2 overflow-hidden rounded-2xl border border-gray-100 dark:border-white/10">
+                      <div className={`h-1 w-full ${style.bar}`} />
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1700px] border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-100 bg-gray-50/70 dark:border-white/10 dark:bg-white/[0.02]">
+                              {["Standard","Domain","Clause","Control","Title","Applicability","Justification","Actionables","Clarification",""].map((h) => (
+                                <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {domainRows.map((r) => {
+                              const isEditing  = editingId === r.id;
+                              const d          = isEditing ? editDraft : r;
+                              const isClarifying = clarifyRowId === r.id;
+                              const needsClarify = r.applicability === "Clarification Needed";
 
-                        <tbody>
-                          {domainRows.map((r) => {
-                            const isEditing = editingId === r.id;
-                            const d = isEditing ? editDraft : r;
-                            const isClarifying = clarifyRowId === r.id;
+                              return (
+                                <tr
+                                  key={r.id}
+                                  className={`group border-b border-gray-50 align-top transition-colors last:border-0 dark:border-white/5 ${
+                                    isEditing
+                                      ? "bg-brand-50/40 dark:bg-brand-500/[0.04]"
+                                      : needsClarify
+                                      ? "bg-cyan-50/30 dark:bg-cyan-500/[0.03]"
+                                      : "hover:bg-gray-50/60 dark:hover:bg-white/[0.02]"
+                                  }`}
+                                >
+                                  {/* Standard */}
+                                  <td className="px-4 py-3.5 text-xs font-medium text-gray-700 dark:text-gray-300">{r.standard}</td>
 
-                            return (
-                              <tr key={r.id} className="border-t border-gray-200 dark:border-white/10 align-top">
-                                <td className="px-4 py-3 text-sm text-navy-700 dark:text-white">{r.standard}</td>
-                                <td className="px-4 py-3 text-sm text-navy-700 dark:text-white">{r.domain}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">{r.clause}</td>
-                                <td className="px-4 py-3 text-sm font-semibold text-navy-700 dark:text-white">{r.control}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">{r.title}</td>
+                                  {/* Domain badge */}
+                                  <td className="px-4 py-3.5">
+                                    <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${(DOMAIN_STYLE[r.domain]||{badge:"bg-gray-100 text-gray-500 dark:bg-white/5 dark:text-gray-400"}).badge}`}>
+                                      {r.domain}
+                                    </span>
+                                  </td>
 
-                                <td className="px-4 py-3 text-sm">
-                                  {isEditing ? (
-                                    <select
-                                      className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-white/10 dark:bg-navy-800 dark:text-white"
-                                      value={d.applicability}
-                                      onChange={(e) =>
-                                        setEditDraft((prev) => ({ ...prev, applicability: e.target.value }))
-                                      }
-                                    >
-                                      {APPLICABILITY_OPTIONS.map((x) => (
-                                        <option key={x} value={x}>{x}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <ApplicabilityBadge value={r.applicability} />
-                                  )}
-                                </td>
+                                  {/* Clause */}
+                                  <td className="px-4 py-3.5 text-sm font-mono font-semibold text-gray-700 dark:text-gray-300">{r.clause}</td>
 
-                                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 min-w-[260px]">
-                                  {isEditing ? (
-                                    <textarea
-                                      className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-white/10 dark:bg-navy-800 dark:text-white"
-                                      rows={4}
-                                      value={d.justification}
-                                      onChange={(e) =>
-                                        setEditDraft((prev) => ({ ...prev, justification: e.target.value }))
-                                      }
-                                    />
-                                  ) : (
-                                    r.justification || "-"
-                                  )}
-                                </td>
+                                  {/* Control */}
+                                  <td className="px-4 py-3.5 text-sm font-bold text-navy-700 dark:text-white">{r.control}</td>
 
-                                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 min-w-[340px]">
-                                  {isEditing ? (
-                                    <textarea
-                                      className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-white/10 dark:bg-navy-800 dark:text-white"
-                                      rows={6}
-                                      value={d.actionablesText}
-                                      onChange={(e) =>
-                                        setEditDraft((prev) => ({ ...prev, actionablesText: e.target.value }))
-                                      }
-                                      placeholder={`Format:
-Information Security Policy | document | true
-Retain backup success logs and periodic restoration test records | evidence_note | false`}
-                                    />
-                                  ) : (
-                                    <div className="space-y-3">
-                                      {(r.actionables || []).map((a, idx) => (
-                                        <div key={idx} className="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                                          <div className="font-medium text-navy-700 dark:text-white">{a.text}</div>
-                                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                            {a.type === "document" ? "Document" : "Evidence / activity note"}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
+                                  {/* Title */}
+                                  <td className="min-w-[180px] px-4 py-3.5 text-sm font-medium text-gray-800 dark:text-gray-200">{r.title}</td>
 
-                                <td className="px-4 py-3 text-sm min-w-[280px]">
-                                  {r.applicability === "Clarification Needed" ? (
-                                    <div className="space-y-2">
-                                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
-                                        {r.clarification_question || "Please provide a short clarification for this control."}
-                                      </div>
+                                  {/* Applicability */}
+                                  <td className="px-4 py-3.5">
+                                    {isEditing ? (
+                                      <select
+                                        value={d.applicability}
+                                        onChange={(e) => setEditDraft((p) => ({ ...p, applicability: e.target.value }))}
+                                        className="w-full min-w-[155px] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-navy-700 outline-none transition focus:border-brand-500 dark:border-white/10 dark:bg-navy-800 dark:text-white"
+                                      >
+                                        {APPLICABILITY_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
+                                      </select>
+                                    ) : (
+                                      <ApplicabilityBadge value={r.applicability} />
+                                    )}
+                                  </td>
 
-                                      {!isClarifying ? (
+                                  {/* Justification */}
+                                  <td className="min-w-[240px] px-4 py-3.5 text-sm text-gray-800 dark:text-gray-200">
+                                    {isEditing ? (
+                                      <textarea
+                                        rows={4}
+                                        value={d.justification}
+                                        onChange={(e) => setEditDraft((p) => ({ ...p, justification: e.target.value }))}
+                                        className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-800 dark:text-white"
+                                      />
+                                    ) : (
+                                      <span className="leading-relaxed">{r.justification || "—"}</span>
+                                    )}
+                                  </td>
+
+                                  {/* Actionables */}
+                                  <td className="min-w-[360px] px-4 py-3.5">
+                                    {isEditing ? (
+                                      <div className="space-y-2">
+                                        {(d.actionablesList || []).map((item, idx) => (
+                                          <ActionableEditorRow
+                                            key={idx}
+                                            item={item}
+                                            index={idx}
+                                            onChange={(updated) =>
+                                              setEditDraft((p) => ({ ...p, actionablesList: p.actionablesList.map((a, i) => i === idx ? updated : a) }))
+                                            }
+                                            onRemove={() =>
+                                              setEditDraft((p) => ({ ...p, actionablesList: p.actionablesList.filter((_, i) => i !== idx) }))
+                                            }
+                                          />
+                                        ))}
                                         <button
-                                          onClick={() => {
-                                            setClarifyRowId(r.id);
-                                            setClarificationInput("");
-                                          }}
-                                          className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+                                          type="button"
+                                          onClick={() => setEditDraft((p) => ({ ...p, actionablesList: [...(p.actionablesList||[]), { text: "", type: "evidence_note", upload_required: false }] }))}
+                                          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 py-2 text-xs font-semibold text-gray-400 transition hover:border-brand-400 hover:text-brand-500 dark:border-white/20 dark:text-gray-500 dark:hover:border-brand-400 dark:hover:text-brand-400"
+                                        >
+                                          <MdOutlineAdd /> Add action
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {(r.actionables || []).map((a, idx) => (
+                                          <div key={idx} className="rounded-xl border border-gray-200 bg-white p-2.5 dark:border-white/10 dark:bg-white/[0.02]">
+                                            <div className="mb-1.5 flex items-center gap-1.5">
+                                              {a.type === "document" ? (
+                                                <span className="flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-500 dark:bg-brand-500/10 dark:text-brand-300">
+                                                  <HiDocumentText className="text-xs" />Doc
+                                                </span>
+                                              ) : (
+                                                <span className="flex items-center gap-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                                                  <HiClipboardDocumentCheck className="text-xs" />Note
+                                                </span>
+                                              )}
+                                              {a.upload_required && (
+                                                <span className="rounded-md bg-yellow-50 px-1.5 py-0.5 text-[10px] font-bold text-yellow-600 dark:bg-yellow-500/10 dark:text-yellow-300">
+                                                  Upload req.
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-xs leading-snug text-gray-800 dark:text-gray-200">{a.text}</p>
+                                          </div>
+                                        ))}
+                                        {(!r.actionables || r.actionables.length === 0) && (
+                                          <span className="text-xs text-gray-400">None</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+
+                                  {/* Clarification */}
+                                  <td className="min-w-[260px] px-4 py-3.5">
+                                    {needsClarify ? (
+                                      <div className="space-y-2">
+                                        <div className="flex items-start gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-2.5 dark:border-cyan-500/20 dark:bg-cyan-500/[0.07]">
+                                          <MdOutlineQuestionAnswer className="mt-0.5 shrink-0 text-sm text-cyan-500" />
+                                          <p className="text-xs leading-snug text-cyan-800 dark:text-cyan-200">
+                                            {r.clarification_question || "Please provide clarification."}
+                                          </p>
+                                        </div>
+                                        {!isClarifying ? (
+                                          <button
+                                            onClick={() => { setClarifyRowId(r.id); setClarificationInput(""); }}
+                                            className="flex items-center gap-1.5 rounded-xl bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-cyan-600"
+                                            type="button"
+                                          >
+                                            <MdOutlineQuestionAnswer className="text-sm" />
+                                            Give Clarification
+                                          </button>
+                                        ) : (
+                                          <div className="space-y-2">
+                                            <textarea
+                                              rows={3}
+                                              value={clarificationInput}
+                                              onChange={(e) => setClarificationInput(e.target.value)}
+                                              placeholder="Your clarification for this control…"
+                                              className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-navy-700 outline-none transition focus:border-brand-500 dark:border-white/10 dark:bg-navy-800 dark:text-white"
+                                            />
+                                            <div className="flex gap-1.5">
+                                              <button
+                                                onClick={() => reEvaluateRow(r)}
+                                                disabled={clarifyLoading}
+                                                className="flex items-center gap-1 rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
+                                                type="button"
+                                              >
+                                                {clarifyLoading ? "…" : <><MdOutlineRefresh className="text-xs" />Re-evaluate</>}
+                                              </button>
+                                              <button
+                                                onClick={() => { setClarifyRowId(null); setClarificationInput(""); }}
+                                                className="flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-white/10 dark:text-gray-400"
+                                                type="button"
+                                              >
+                                                <MdOutlineClose className="text-xs" />Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-600 dark:bg-green-500/10 dark:text-green-400">
+                                        <HiCheckCircle className="text-xs" /> None needed
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Edit / Save / Cancel */}
+                                  <td className="min-w-[100px] px-4 py-3.5">
+                                    {!isEditing ? (
+                                      <button
+                                        onClick={() => startEdit(r)}
+                                        className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:border-brand-400 hover:text-brand-500 dark:border-white/10 dark:text-white dark:hover:border-brand-400"
+                                        type="button"
+                                      >
+                                        <MdOutlineEdit className="text-sm" /> Edit
+                                      </button>
+                                    ) : (
+                                      <div className="flex flex-col gap-1.5">
+                                        <button
+                                          onClick={saveEdit}
+                                          className="flex items-center gap-1 rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-brand-500/30 transition hover:bg-brand-600"
                                           type="button"
                                         >
-                                          Give Clarification
+                                          <MdOutlineCheck className="text-sm" /> Save
                                         </button>
-                                      ) : (
-                                        <div className="space-y-2">
-                                          <textarea
-                                            className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-white/10 dark:bg-navy-800 dark:text-white"
-                                            rows={4}
-                                            value={clarificationInput}
-                                            onChange={(e) => setClarificationInput(e.target.value)}
-                                            placeholder="Enter clarification only for this control..."
-                                          />
-                                          <div className="flex gap-2">
-                                            <button
-                                              onClick={() => reEvaluateRow(r)}
-                                              disabled={clarifyLoading}
-                                              className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
-                                              type="button"
-                                            >
-                                              {clarifyLoading ? "Re-evaluating..." : "Re-evaluate Row"}
-                                            </button>
-                                            <button
-                                              onClick={() => {
-                                                setClarifyRowId(null);
-                                                setClarificationInput("");
-                                              }}
-                                              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white"
-                                              type="button"
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      No clarification needed
-                                    </div>
-                                  )}
-                                </td>
-
-                                <td className="px-4 py-3 text-sm min-w-[120px]">
-                                  {!isEditing ? (
-                                    <button
-                                      onClick={() => startEdit(r)}
-                                      className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-semibold text-navy-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
-                                      type="button"
-                                    >
-                                      Edit
-                                    </button>
-                                  ) : (
-                                    <div className="flex flex-col gap-2">
-                                      <button
-                                        onClick={saveEdit}
-                                        className="rounded-lg bg-brand-500 px-3 py-1 text-sm font-semibold text-white hover:bg-brand-600"
-                                        type="button"
-                                      >
-                                        Save
-                                      </button>
-                                      <button
-                                        onClick={cancelEdit}
-                                        className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-semibold text-navy-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
-                                        type="button"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                        <button
+                                          onClick={cancelEdit}
+                                          className="flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-white/10 dark:text-gray-400"
+                                          type="button"
+                                        >
+                                          <MdOutlineClose className="text-sm" /> Cancel
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
