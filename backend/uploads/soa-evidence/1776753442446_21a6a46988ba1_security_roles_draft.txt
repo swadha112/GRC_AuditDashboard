@@ -1,0 +1,7 @@
+Security Roles
+
+IT is responsible for security.
+Doctors and nurses should follow security rules.
+Admins can create user accounts.
+
+This document is a draft and not yet approved.

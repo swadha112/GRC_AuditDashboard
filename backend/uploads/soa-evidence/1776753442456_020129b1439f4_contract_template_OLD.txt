@@ -1,0 +1,11 @@
+Employee Contract Template
+
+Name: ___________
+Start Date: ___________
+Role: ___________
+Salary: ___________
+
+The employee agrees to do their job.
+Security rules should be followed.
+
+Note: this is an old version. Current HR template is on the shared drive somewhere.

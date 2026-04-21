@@ -1,0 +1,43 @@
+DATA PRIVACY AND PII PROTECTION POLICY
+Version 3.0 | Effective Date: 15 January 2024 | Review Date: 15 January 2025
+Owner: Data Protection Officer (DPO)
+Classification: Internal
+
+1. PURPOSE
+To ensure all personal data, including special category health data (patient records,
+diagnoses, prescriptions), is processed in compliance with UK GDPR and the Data
+Protection Act 2018.
+
+2. LAWFUL BASIS FOR PROCESSING
+2.1 Patient care data: Article 9(2)(h) – necessary for medical diagnosis and treatment.
+2.2 HR and payroll data: Article 6(1)(b) – necessary for performance of employment contract.
+2.3 Supplier data: Article 6(1)(f) – legitimate interests.
+
+3. DATA MINIMISATION AND RETENTION
+Category              | Retention Period  | Disposal Method
+----------------------|-------------------|------------------
+Adult patient records | 8 years from last | Secure shred / encrypted wipe
+                      | contact           |
+Child patient records | Until age 25      | Secure shred / encrypted wipe
+Prescriptions         | 2 years           | Encrypted wipe
+Billing/Insurance     | 7 years           | Secure shred
+HR Records            | 7 years post-exit | Encrypted wipe
+
+4. SUBJECT ACCESS RIGHTS
+Requests handled within 30 days. All requests logged in the SAR Register (DPO-SAR-001).
+Identity verification mandatory before disclosure.
+
+5. THIRD-PARTY PROCESSORS
+All HMS vendor contracts include Data Processing Agreements (DPAs).
+Annual review of DPAs required. Vendor sub-processors must be approved in advance.
+
+6. BREACH NOTIFICATION
+Any breach involving personal data must be escalated to the DPO within 24 hours.
+Reportable breaches notified to the ICO within 72 hours per UK GDPR Article 33.
+
+7. TRAINING
+All staff with access to patient data complete GDPR awareness training on induction
+and annually thereafter.
+
+Approved by: _________________________    Date: 15 January 2024
+Data Protection Officer

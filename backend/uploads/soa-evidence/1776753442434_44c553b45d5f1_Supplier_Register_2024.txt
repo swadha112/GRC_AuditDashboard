@@ -1,0 +1,22 @@
+IT SUPPLIER AND CLOUD SERVICE REGISTER
+Health Department | Version 1.2 | Review Date: January 2025
+Owner: IT Manager
+Classification: Internal
+
+Supplier Name    | Service             | Data Processed           | Risk | DPA Signed | Last Review
+-----------------|---------------------|--------------------------|------|------------|-------------
+CloudCare Ltd    | HMS hosting (SaaS)  | Patient records, billing | High | Yes        | Mar 2024
+MedBackup Ltd    | Offsite backup      | Patient records, HR data | High | Yes        | Jan 2024
+SecureNet ISP    | Internet/WAN        | Network traffic metadata | Med  | Yes        | Jan 2024
+CyberGuard Ltd   | Endpoint AV/EDR     | Device telemetry         | Med  | Yes        | Dec 2023
+HR Cloud Ltd     | Payroll processing  | Staff PII, salary data   | High | Yes        | Feb 2024
+TeleCom Ltd      | VOIP/telephony      | Call metadata only       | Low  | Yes        | Jan 2024
+OfficeSoft       | Productivity suite  | Internal docs, emails    | Med  | Yes        | Mar 2024
+
+REVIEW CRITERIA:
+- High-risk suppliers reviewed annually with security questionnaire.
+- DPA renewal triggered by contract renewal or data scope change.
+- Sub-processor list reviewed semi-annually.
+
+Next scheduled review: January 2025.
+IT Manager sign-off: R. Singh _____________ Date: March 2024

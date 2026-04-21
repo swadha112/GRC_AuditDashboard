@@ -1,0 +1,39 @@
+REMOTE WORKING AND MOBILE DEVICE POLICY
+Version 1.2 | Effective Date: 01 June 2023 | Review Date: 01 June 2024
+Owner: IT Manager
+Classification: Internal
+
+1. SCOPE
+Applies to all Health Department staff and contractors working remotely, including
+clinical staff accessing HMS from off-site locations.
+
+2. APPROVED DEVICES
+2.1 Only IT-issued and managed devices are permitted to access HMS and clinical data remotely.
+2.2 Personal devices are prohibited for accessing patient records or HMS.
+2.3 All managed laptops must have: full-disk encryption (BitLocker), anti-virus (CyberGuard EDR),
+    automatic screen lock (5-minute timeout), and remote-wipe capability.
+
+3. NETWORK REQUIREMENTS
+3.1 VPN is mandatory for all remote access to internal systems and HMS.
+3.2 Public Wi-Fi networks must be used only over VPN. Split-tunnelling is disabled.
+3.3 Home networks must use WPA2 or WPA3 encryption. IT provides setup guidance.
+
+4. DATA HANDLING RULES
+4.1 Patient data must not be downloaded to local storage. Access via HMS online only.
+4.2 Screen sharing during video calls must not expose patient data without clinical necessity.
+4.3 Physical printed patient documents are prohibited in home environments.
+4.4 USB storage devices are blocked on managed endpoints.
+
+5. MFA
+MFA via Authenticator App is required for all remote HMS logins.
+Backup codes stored securely by IT Manager only.
+
+6. INCIDENT REPORTING
+Lost/stolen devices: report to IT within 1 hour (ext 2450 / mob). Remote wipe initiated
+immediately. Incident logged as P2.
+
+7. COMPLIANCE MONITORING
+IT reviews remote access logs monthly. Anomalous access patterns escalated to CISO.
+
+Approved by: _________________________    Date: 01 June 2023
+IT Manager

@@ -464,6 +464,81 @@ async function buildFullAssessment(assessmentId) {
 }
 
 // --------------------------------------------------
+// GET business-level evidence stats
+// --------------------------------------------------
+router.get("/business/:soaRecordId/stats", async (req, res) => {
+  try {
+    const soaRecordId = Number(req.params.soaRecordId);
+    if (!Number.isFinite(soaRecordId)) {
+      return res.status(400).json({ error: "Invalid soaRecordId" });
+    }
+
+    // Unique files + how many have an assessment
+    const fileStats = await q(
+      `SELECT
+         COUNT(DISTINCT f.file_hash)                                       AS total_files,
+         COUNT(DISTINCT ea.file_hash) FILTER (WHERE ea.id IS NOT NULL)     AS assessed_files
+       FROM soa_rows r
+       JOIN soa_actionables a  ON a.soa_row_id = r.id
+       JOIN soa_actionable_files f ON f.soa_actionable_id = a.id
+       LEFT JOIN soa_evidence_assessments ea
+         ON ea.soa_record_id = r.soa_record_id AND ea.file_hash = f.file_hash
+       WHERE r.soa_record_id = $1`,
+      [soaRecordId]
+    );
+
+    // Control-level outcome breakdown across all assessments for this business
+    const ctrlStats = await q(
+      `SELECT eac.assessment_status, COUNT(*) AS cnt
+       FROM soa_evidence_assessment_controls eac
+       JOIN soa_evidence_assessments ea ON ea.id = eac.assessment_id
+       WHERE ea.soa_record_id = $1
+       GROUP BY eac.assessment_status`,
+      [soaRecordId]
+    );
+
+    // Upload-required actionables vs files present
+    const uploadStats = await q(
+      `SELECT
+         COUNT(DISTINCT a.id)                                              AS upload_required,
+         COUNT(DISTINCT f.soa_actionable_id) FILTER (WHERE f.id IS NOT NULL) AS has_files
+       FROM soa_rows r
+       JOIN soa_actionables a ON a.soa_row_id = r.id AND a.upload_required = true
+       LEFT JOIN soa_actionable_files f ON f.soa_actionable_id = a.id
+       WHERE r.soa_record_id = $1`,
+      [soaRecordId]
+    );
+
+    const totalFiles   = Number(fileStats.rows[0]?.total_files   || 0);
+    const assessedFiles = Number(fileStats.rows[0]?.assessed_files || 0);
+    const uploadRequired = Number(uploadStats.rows[0]?.upload_required || 0);
+    const hasFiles       = Number(uploadStats.rows[0]?.has_files       || 0);
+
+    const ctrlMap = {};
+    for (const r of ctrlStats.rows) ctrlMap[r.assessment_status] = Number(r.cnt);
+
+    return res.json({
+      total_files:       totalFiles,
+      assessed_files:    assessedFiles,
+      not_assessed_files: totalFiles - assessedFiles,
+      upload_required:   uploadRequired,
+      files_uploaded:    hasFiles,
+      files_missing:     uploadRequired - hasFiles,
+      adequate:          ctrlMap["Adequate"]            || 0,
+      partially_adequate: ctrlMap["Partially Adequate"] || 0,
+      inadequate:        ctrlMap["Inadequate"]           || 0,
+      not_relevant:      ctrlMap["Not Relevant"]         || 0,
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({
+      error: "Failed to load business stats",
+      details: e?.message || String(e),
+    });
+  }
+});
+
+// --------------------------------------------------
 // GET businesses for dropdown
 // --------------------------------------------------
 router.get("/businesses", async (req, res) => {

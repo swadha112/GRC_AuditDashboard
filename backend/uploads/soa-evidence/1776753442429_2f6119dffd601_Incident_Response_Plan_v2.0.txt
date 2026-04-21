@@ -1,0 +1,49 @@
+INFORMATION SECURITY INCIDENT RESPONSE PLAN
+Version 2.0 | Effective Date: 01 April 2024 | Review Date: 01 April 2025
+Owner: CISO
+Classification: Restricted
+
+1. SCOPE
+Covers all information security incidents affecting Health Department systems,
+including the HMS, staff endpoints, network infrastructure, and data breaches.
+
+2. INCIDENT CLASSIFICATION
+Severity | Definition                                | SLA (Response)
+---------|-------------------------------------------|----------------
+P1       | Patient data breach, ransomware, HMS down | 30 minutes
+P2       | Suspected breach, malware, privilege abuse | 2 hours
+P3       | Policy violation, phishing click (no data) | 8 hours
+P4       | Near-miss, anomalous access detected       | 24 hours
+
+3. RESPONSE PHASES
+Phase 1 – Identification
+  - Staff report via email: security@healthdept.gov or ext 2100.
+  - IT on-call acknowledges within SLA, opens ticket in ITSM.
+
+Phase 2 – Containment
+  - Isolate affected system from network if P1/P2.
+  - Preserve evidence: do not power off unless ransomware confirmed.
+  - Notify CISO and Operations Director within 30 mins for P1.
+
+Phase 3 – Eradication & Recovery
+  - Remove malware / revoke compromised credentials.
+  - Restore from last known-good backup after forensic sign-off.
+  - HMS vendor engaged for platform-level incidents (CloudCare SLA: 4hr response).
+
+Phase 4 – Post-Incident Review
+  - PIR completed within 5 business days (template: IS-INC-PIR-001).
+  - Lessons learned shared with IT and clinical leads.
+  - CISO reports trends quarterly to Board.
+
+4. DATA BREACH NOTIFICATION
+  - DPO notified within 24 hours of confirmed personal data breach.
+  - ICO notification within 72 hours if risk to individuals (UK GDPR Art.33).
+  - Affected individuals notified without undue delay if high risk (Art.34).
+
+5. EVIDENCE PRESERVATION
+  - System logs retained 12 months (login, admin actions, HMS audit trail).
+  - Forensic images taken before remediation for P1/P2 incidents.
+  - Chain of custody log maintained (IS-INC-COC-001).
+
+Approved by: _________________________    Date: 01 April 2024
+CISO

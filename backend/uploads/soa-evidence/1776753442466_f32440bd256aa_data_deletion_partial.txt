@@ -1,0 +1,7 @@
+Data Deletion Notes
+
+Old records should be deleted after some time.
+IT will handle deletion of digital files.
+Paper records go in the shredder bin.
+
+Retention periods: TBD (waiting on legal confirmation).

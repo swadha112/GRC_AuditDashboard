@@ -1,0 +1,48 @@
+INFORMATION SECURITY POLICY
+Version 2.1 | Effective Date: 01 March 2024 | Review Date: 01 March 2025
+Owner: Chief Information Security Officer
+Classification: Internal
+
+1. PURPOSE
+This policy establishes the organisation's commitment to protecting the confidentiality,
+integrity and availability of all information assets in accordance with ISO/IEC 27001:2022.
+
+2. SCOPE
+Applies to all employees, contractors, agency staff, and third-party users with access to
+Health Department systems, including the cloud-hosted Hospital Management System (HMS).
+
+3. POLICY STATEMENTS
+3.1 All information assets shall be classified according to the Information Classification
+    Standard (Doc Ref: IS-CLASSIFY-001).
+3.2 Access to HMS shall be granted on a least-privilege, role-based basis (RBAC).
+    Access requests require line manager approval and IT sign-off.
+3.3 Multi-factor authentication (MFA) is mandatory for all remote access and all
+    privileged accounts.
+3.4 Passwords must meet minimum complexity: 12 characters, upper/lower/number/symbol,
+    90-day expiry, 10-generation history.
+3.5 All security incidents must be reported to security@healthdept.gov within 2 hours
+    of discovery using the Incident Reporting Form (IS-INC-001).
+3.6 Backup of patient records, billing data, and lab results is performed nightly to
+    an encrypted off-site location. Recovery is tested quarterly.
+3.7 Staff must complete mandatory Information Security Awareness training annually.
+    Completion records are retained for 3 years.
+3.8 Removable media is prohibited on clinical workstations without prior IT approval.
+
+4. RESPONSIBILITIES
+- CISO: Policy ownership, annual review, exception management.
+- IT Manager: Technical controls, access provisioning, incident response.
+- Department Heads: Staff compliance, local asset register.
+- All Staff: Adherence to this policy and reporting of suspected incidents.
+
+5. ENFORCEMENT
+Violations may result in disciplinary action up to and including dismissal and/or
+referral to regulatory authorities (CQC, ICO).
+
+6. RELATED DOCUMENTS
+- IS-CLASSIFY-001: Information Classification Standard
+- IS-ACCESS-002: Access Control Procedure
+- IS-INC-001: Incident Response Procedure
+- IS-BCM-003: Business Continuity Plan
+
+Approved by: _________________________    Date: 01 March 2024
+Director of Operations

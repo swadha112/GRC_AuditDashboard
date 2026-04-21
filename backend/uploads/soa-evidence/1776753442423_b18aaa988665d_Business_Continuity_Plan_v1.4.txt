@@ -1,0 +1,52 @@
+BUSINESS CONTINUITY PLAN – HEALTH DEPARTMENT
+Version 1.4 | Effective Date: 10 February 2024 | Last Tested: 10 November 2023
+Owner: Operations Director
+Classification: Restricted
+
+1. PURPOSE
+To ensure continued delivery of critical health services in the event of a disruption to
+the Hospital Management System (HMS), network, or physical premises.
+
+2. CRITICAL SERVICES AND RTO/RPO
+Service                   | RTO    | RPO    | Workaround
+--------------------------|--------|--------|-------------------------------------------
+Patient admissions/triage | 4 hrs  | 1 hr   | Paper-based admission forms (IS-BCM-F01)
+Medication dispensing     | 2 hrs  | 30 min | Offline prescription pad + pharmacy log
+Lab result reporting      | 8 hrs  | 2 hrs  | Manual fax to clinical team
+Billing/insurance claims  | 48 hrs | 24 hrs | Batch entry on HMS restoration
+
+3. ACTIVATION CRITERIA
+BCP is activated by the IT Manager or Operations Director when:
+- HMS unavailability exceeds 2 hours during clinical hours.
+- Network outage affects > 50% of clinical workstations.
+- Physical event (fire, flood) renders primary site inaccessible.
+
+4. RECOVERY PROCEDURES
+Step 1: IT Manager declares incident, notifies Operations Director and CISO.
+Step 2: Failover to DR environment (cloud secondary region) initiated – target 2 hrs.
+Step 3: Clinical leads notified; paper-based fallback activated per department SOPs.
+Step 4: Status updates every 2 hours to Department Head.
+Step 5: Post-incident review within 5 business days. Report to CISO.
+
+5. BACKUP AND RECOVERY
+- Nightly incremental backups to encrypted cloud secondary region (AWS eu-west-2).
+- Weekly full backup. Monthly restore test.
+- Backup test results reviewed by CISO monthly.
+
+6. BCP TEST HISTORY
+Date        | Type                | Result | Issues Found
+------------|---------------------|--------|----------------------------------
+10 Nov 2023 | Tabletop exercise   | Pass   | Minor: paper forms outdated in Ward 3
+15 May 2023 | DR failover test    | Pass   | RTO achieved in 1h 48m
+12 Jan 2023 | Backup restore test | Pass   | 100% data recovered
+
+7. KEY CONTACTS
+Role                  | Name              | Contact
+----------------------|-------------------|------------------
+Operations Director   | J. Matthews       | ext 2201
+IT Manager            | R. Singh          | ext 2450 / mob 07xxx
+CISO                  | L. Chen           | ext 2100
+HMS Vendor Support    | CloudCare Ltd     | 0800-XXX-XXXX (24/7)
+
+Approved by: _________________________    Date: 10 February 2024
+Operations Director

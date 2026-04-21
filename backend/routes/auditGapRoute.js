@@ -148,63 +148,34 @@ async function deleteFindingById(id) {
 }
 
 function buildSemanticText(row) {
-  return [
-    normalizeText(row.control),
-    normalizeText(row.clause),
-    normalizeText(row.source_observation),
-    normalizeText(row.basis),
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  // Embed only the human observation text so that paraphrases with different
+  // AI-assigned controls/clauses still score as similar.
+  return normalizeText(row.source_observation) || normalizeText(row.basis) || "";
 }
 
-async function findSimilarCandidates({ standard, control, embedding }) {
+async function findSimilarCandidates({ standard, embedding }) {
   const vec = toPgVector(embedding);
 
-  // first try same standard + same control
-  const sameControl = await q(
+  // Search all findings in the same standard — don't restrict by control
+  // because the AI may map the same observation to different control IDs.
+  const res = await q(
     `
     SELECT *,
            (1 - (embedding <=> $1::vector)) AS similarity
     FROM ia_findings
     WHERE standard = $2
-      AND control = $3
       AND embedding IS NOT NULL
     ORDER BY embedding <=> $1::vector
-    LIMIT $4
+    LIMIT $3
     `,
-    [vec, standard, control, TOP_K]
+    [vec, standard, TOP_K]
   );
 
-  let rows = sameControl.rows || [];
-
-  // fallback to same standard if not enough candidates
-  if (rows.length < TOP_K) {
-    const broader = await q(
-      `
-      SELECT *,
-             (1 - (embedding <=> $1::vector)) AS similarity
-      FROM ia_findings
-      WHERE standard = $2
-        AND embedding IS NOT NULL
-      ORDER BY embedding <=> $1::vector
-      LIMIT $3
-      `,
-      [vec, standard, TOP_K]
-    );
-
-    const seen = new Set(rows.map((r) => r.id));
-    for (const r of broader.rows || []) {
-      if (!seen.has(r.id)) rows.push(r);
-    }
-  }
-
-  return rows
+  return (res.rows || [])
     .map((r) => ({
       existing: rowFromDb(r),
       similarity: Number(r.similarity ?? 0),
-      conflict_level:
-        Number(r.similarity ?? 0) >= STRONG_DUP_THRESHOLD ? "strong" : "possible",
+      conflict_level: Number(r.similarity ?? 0) >= STRONG_DUP_THRESHOLD ? "strong" : "possible",
     }))
     .filter((x) => x.similarity >= POSSIBLE_DUP_THRESHOLD)
     .sort((a, b) => b.similarity - a.similarity)
@@ -470,7 +441,6 @@ ${observationsText}
 
       const candidates = await findSimilarCandidates({
         standard: row.standard,
-        control: row.control,
         embedding,
       });
 

@@ -15,6 +15,10 @@ import {
   MdRefresh,
   MdOutlineFolder,
   MdOutlineInsertDriveFile,
+  MdOutlineUploadFile,
+  MdOutlineAssignment,
+  MdOutlinePendingActions,
+  MdOutlineErrorOutline,
 } from "react-icons/md";
 
 const API_BASE = "http://localhost:5001";
@@ -117,6 +121,127 @@ function Modal({ open, onClose, title, children }) {
         <div className="px-6 py-5">{children}</div>
       </div>
     </div>
+  );
+}
+
+// ── Business-level stats panel ────────────────────────────────────────────
+function BusinessStats({ stats, loading }) {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7 animate-pulse">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="h-20 rounded-2xl bg-gray-100 dark:bg-white/5" />
+        ))}
+      </div>
+    );
+  }
+  if (!stats) return null;
+
+  const totalCtrl = stats.adequate + stats.partially_adequate + stats.inadequate + stats.not_relevant;
+  const coveragePct = stats.upload_required
+    ? Math.round((stats.files_uploaded / stats.upload_required) * 100)
+    : 100;
+
+  const tiles = [
+    {
+      label: "Files Uploaded",
+      value: stats.total_files,
+      icon: MdOutlineUploadFile,
+      color: "text-brand-500",
+      bg: "bg-brand-50 dark:bg-brand-500/10",
+      border: "border-l-brand-500",
+    },
+    {
+      label: "Assessed",
+      value: stats.assessed_files,
+      icon: MdOutlineAssignment,
+      color: "text-green-600 dark:text-green-400",
+      bg: "bg-green-50 dark:bg-green-500/10",
+      border: "border-l-green-500",
+    },
+    {
+      label: "Not Assessed",
+      value: stats.not_assessed_files,
+      icon: MdOutlinePendingActions,
+      color: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-50 dark:bg-amber-500/10",
+      border: "border-l-amber-400",
+    },
+    {
+      label: "Missing Evidence",
+      value: stats.files_missing,
+      icon: MdOutlineErrorOutline,
+      color: "text-red-500",
+      bg: "bg-red-50 dark:bg-red-500/10",
+      border: "border-l-red-500",
+    },
+    {
+      label: "Adequate",
+      value: stats.adequate,
+      icon: MdOutlineCheckCircle,
+      color: "text-green-600 dark:text-green-400",
+      bg: "bg-green-50 dark:bg-green-500/10",
+      border: "border-l-green-500",
+    },
+    {
+      label: "Partial",
+      value: stats.partially_adequate,
+      icon: MdOutlineWarningAmber,
+      color: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-50 dark:bg-amber-500/10",
+      border: "border-l-amber-400",
+    },
+    {
+      label: "Inadequate",
+      value: stats.inadequate,
+      icon: MdOutlineCancel,
+      color: "text-red-500",
+      bg: "bg-red-50 dark:bg-red-500/10",
+      border: "border-l-red-500",
+    },
+  ];
+
+  return (
+    <Card className="rounded-2xl p-4 dark:bg-navy-800" style={{ animation: "eaSlideDown 0.2s ease both" }}>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Evidence Overview
+        </p>
+        <div className="flex items-center gap-2">
+          {totalCtrl > 0 && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {totalCtrl} control{totalCtrl !== 1 ? "s" : ""} assessed
+            </span>
+          )}
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+              coveragePct === 100
+                ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300"
+                : coveragePct >= 50
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+            }`}
+          >
+            {coveragePct}% coverage
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
+        {tiles.map(({ label, value, icon: Icon, color, bg, border }) => (
+          <div
+            key={label}
+            className={`flex items-center gap-2.5 rounded-xl border-l-4 ${border} ${bg} px-3 py-3`}
+          >
+            <Icon className={`h-5 w-5 flex-shrink-0 ${color}`} />
+            <div className="min-w-0">
+              <p className={`text-xl font-bold leading-none ${color}`}>{value}</p>
+              <p className="mt-0.5 text-[11px] leading-tight text-gray-500 dark:text-gray-400">{label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -246,6 +371,9 @@ export default function EvidenceAssessment() {
   const [editingControlId, setEditingControlId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
 
+  const [businessStats, setBusinessStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   const [loadingBusinesses, setLoadingBusinesses] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [runningAssessment, setRunningAssessment] = useState(false);
@@ -260,10 +388,21 @@ export default function EvidenceAssessment() {
     if (!selectedBusinessId) {
       setFiles([]); setSelectedFileHash(""); setSelectedFileGroup(null);
       setAssessment(null); setEditingControlId(null); setEditDraft(null);
+      setBusinessStats(null);
       return;
     }
     loadFilesForBusiness(selectedBusinessId);
+    loadStats(selectedBusinessId);
   }, [selectedBusinessId]);
+
+  const loadStats = async (businessId) => {
+    setLoadingStats(true);
+    try {
+      const res = await axios.get(`${API_BASE}/api/evidence-assessment/business/${businessId}/stats`);
+      setBusinessStats(res.data);
+    } catch { setBusinessStats(null); }
+    finally { setLoadingStats(false); }
+  };
 
   useEffect(() => {
     if (!selectedFileHash) {
@@ -335,6 +474,7 @@ export default function EvidenceAssessment() {
       });
       setAssessment(res.data);
       setSuccess("Assessment completed successfully.");
+      loadStats(selectedBusinessId);
     } catch (e) {
       setError(e?.response?.data?.error || "Failed to run evidence assessment.");
     } finally { setRunningAssessment(false); }
@@ -449,6 +589,11 @@ export default function EvidenceAssessment() {
           </button>
         </div>
       </Card>
+
+      {/* Business stats */}
+      {selectedBusinessId && (
+        <BusinessStats stats={businessStats} loading={loadingStats} />
+      )}
 
       {/* Alerts */}
       {error && (

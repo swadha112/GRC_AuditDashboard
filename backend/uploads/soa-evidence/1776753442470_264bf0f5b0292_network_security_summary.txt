@@ -1,0 +1,7 @@
+Network Security
+
+We have a firewall.
+VPN is used by remote workers.
+The vendor manages the HMS network.
+
+No further documentation available at this time.
